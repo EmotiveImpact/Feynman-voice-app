@@ -67,8 +67,9 @@ export function SceneView({
       // that cannot draw is left blank instead.
       try {
         drawScene(canvas, scene, changes, { t: t.value, T: clock.value, v: v.value, intro: intro.value, still: reduce, hand: HAND_DRAWN }, font);
-      } catch {
-        // Nothing drawn this frame.
+      } catch (e) {
+        // Nothing drawn this frame. Say why in development, so a blank panel is never a mystery.
+        if (__DEV__) console.warn("Scene could not draw:", String(e));
       }
     }),
   );
