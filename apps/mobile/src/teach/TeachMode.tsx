@@ -283,7 +283,13 @@ export function TeachMode({
       <View style={[StyleSheet.absoluteFill, { backgroundColor: colour.ground }]} />
       <Backdrop scene="intro" />
 
-      <ScrollView ref={scroll} contentContainerStyle={{ paddingTop: insets.top + 84, paddingHorizontal: 24, paddingBottom: 200, flexGrow: 1 }}>
+      <ScrollView
+        ref={scroll}
+        // No pull down or stretch past the ends: it read as "pull to reset".
+        bounces={false}
+        alwaysBounceVertical={false}
+        overScrollMode="never"
+        contentContainerStyle={{ paddingTop: insets.top + 84, paddingHorizontal: 24, paddingBottom: 200, flexGrow: 1 }}>
         {!lesson && !error && (
           <View style={styles.centre}>
             <LivingLight size={90} energy={0.5} mood="think" touchable />

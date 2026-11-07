@@ -20,10 +20,13 @@
 //   Under Reduce Motion nothing loops and only the slider changes the scene.
 // The panel is 300 x 176; the view scales it to fit the screen.
 import { Skia, type SkCanvas, type SkFont, type SkPaint } from "@shopify/react-native-skia";
+
 import { THINGS } from "./things";
+
 import type { BalanceScene, BraceScene, Change, CompareScene, CrowdScene, CutawayScene, FanScene, FunnelScene, GraphScene, GridScene, LayersScene, LinksScene, MapScene, MirrorScene, PairScene, PairSide, ParticlesScene, RadialScene, SankeyScene, Scene, Shape, SpectrumScene, SpiralScene, StackScene, StairsScene, TestScene, ThingsScene, ThresholdScene, TimelineScene, TreeScene, UnitsScene, VennScene, WaveScene, ZoomScene } from "./types";
 
 export const VIEW_W = 300;
+
 export const VIEW_H = 176;
 
 export interface Frame {
@@ -45,10 +48,15 @@ export interface Frame {
 export const HAND_DRAWN = false;
 
 const SIL = "#E6E9EE";
+
 const BLUE = "#A9BEE6";
+
 const LAB = "#8A8F98";
+
 const PANEL = "#0D0E11";
+
 const W0 = 1.6;
+
 const TAU = Math.PI * 2;
 
 // ---- small maths ----
@@ -56,37 +64,44 @@ function clamp(x: number, a = 0, b = 1) {
   "worklet";
   return Math.max(a, Math.min(b, x));
 }
+
 /** Soft landing, no overshoot. */
 function ease(x: number) {
   "worklet";
   const k = clamp(x);
   return 1 - Math.pow(1 - k, 3);
 }
+
 function ease2(x: number) {
   "worklet";
   const k = clamp(x);
   return k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
 }
+
 function rnd(s: number) {
   "worklet";
   const x = Math.sin(s * 127.1 + 311.7) * 43758.5453;
   return x - Math.floor(x);
 }
+
 function bounce(x: number, L: number) {
   "worklet";
   const m = ((x % (2 * L)) + 2 * L) % (2 * L);
   return m < L ? m : 2 * L - m;
 }
+
 /** Beat k of n: each part of the picture lands in turn as it builds. */
 function beat(f: Frame, k: number, n: number) {
   "worklet";
   return ease(f.intro * (n + 1) - k);
 }
+
 function has(changes: Change[], target: string, does: string) {
   "worklet";
   for (let i = 0; i < changes.length; i++) if (changes[i].does === does && changes[i].target === target) return true;
   return false;
 }
+
 function hasKind(changes: Change[], does: string) {
   "worklet";
   for (let i = 0; i < changes.length; i++) if (changes[i].does === does) return true;
@@ -101,6 +116,7 @@ function fill(p: SkPaint, colour: string, a: number) {
   p.setColor(Skia.Color(colour));
   p.setAlphaf(clamp(a));
 }
+
 function stroke(p: SkPaint, colour: string, a: number, w = W0, dash?: number[]) {
   "worklet";
   p.setStyle(1);
@@ -111,6 +127,7 @@ function stroke(p: SkPaint, colour: string, a: number, w = W0, dash?: number[]) 
   p.setAlphaf(clamp(a));
   p.setPathEffect(dash ? Skia.PathEffect.MakeDash(dash, 0) : null);
 }
+
 /** The soft halo behind the one lit thing. Nothing else glows. */
 function halo(c: SkCanvas, x: number, y: number, r: number, a: number) {
   "worklet";
@@ -120,6 +137,7 @@ function halo(c: SkCanvas, x: number, y: number, r: number, a: number) {
   hp.setMaskFilter(Skia.MaskFilter.MakeBlur(0, Math.min(7, 2.5 + r * 0.25), true));
   c.drawCircle(x, y, r + 1.5, hp);
 }
+
 function dot(c: SkCanvas, p: SkPaint, x: number, y: number, r: number, a: number, colour = SIL) {
   "worklet";
   if (a <= 0.01 || r <= 0) return;
@@ -127,12 +145,14 @@ function dot(c: SkCanvas, p: SkPaint, x: number, y: number, r: number, a: number
   fill(p, colour, a);
   c.drawCircle(x, y, r, p);
 }
+
 function ring(c: SkCanvas, p: SkPaint, x: number, y: number, r: number, a: number, colour = SIL) {
   "worklet";
   if (a <= 0.01 || r <= 0) return;
   stroke(p, colour, a);
   c.drawCircle(x, y, r, p);
 }
+
 /** A line drawn on from its start: k from 0 to 1. */
 function line(c: SkCanvas, p: SkPaint, x1: number, y1: number, x2: number, y2: number, a: number, colour = SIL, k = 1, dash?: number[], w = W0) {
   "worklet";
@@ -140,6 +160,7 @@ function line(c: SkCanvas, p: SkPaint, x1: number, y1: number, x2: number, y2: n
   stroke(p, colour, a, w, dash);
   c.drawLine(x1, y1, x1 + (x2 - x1) * k, y1 + (y2 - y1) * k, p);
 }
+
 function arrow(c: SkCanvas, p: SkPaint, x1: number, y1: number, x2: number, y2: number, a: number, colour = SIL, k = 1) {
   "worklet";
   line(c, p, x1, y1, x2, y2, a, colour, k);
@@ -151,6 +172,7 @@ function arrow(c: SkCanvas, p: SkPaint, x1: number, y1: number, x2: number, y2: 
   line(c, p, x2 - Math.cos(ang - 0.5) * s, y2 - Math.sin(ang - 0.5) * s, x2, y2, a, colour);
   line(c, p, x2 - Math.cos(ang + 0.5) * s, y2 - Math.sin(ang + 0.5) * s, x2, y2, a, colour);
 }
+
 /** A spark: four short rays where two things meet. It always means "a reaction happened here". */
 function spark(c: SkCanvas, p: SkPaint, x: number, y: number, a: number, colour = BLUE) {
   "worklet";
@@ -159,6 +181,7 @@ function spark(c: SkCanvas, p: SkPaint, x: number, y: number, a: number, colour 
     line(c, p, x + Math.cos(an) * 7, y + Math.sin(an) * 7, x + Math.cos(an) * 12, y + Math.sin(an) * 12, a, colour);
   }
 }
+
 function label(c: SkCanvas, p: SkPaint, font: SkFont | null, text: string, x: number, y: number, align: "left" | "center" | "right", colour = LAB, a = 1) {
   "worklet";
   if (!font || !text || a <= 0.01) return;
@@ -167,6 +190,7 @@ function label(c: SkCanvas, p: SkPaint, font: SkFont | null, text: string, x: nu
   fill(p, colour, a);
   c.drawText(text, left, y + 3.3, p, font);
 }
+
 /** A label on a small patch of the panel's own colour, so a line passing behind it stops short of the words. */
 function knockLabel(c: SkCanvas, p: SkPaint, font: SkFont | null, text: string, x: number, y: number, align: "left" | "center" | "right", colour = LAB, a = 1) {
   "worklet";
@@ -177,6 +201,7 @@ function knockLabel(c: SkCanvas, p: SkPaint, font: SkFont | null, text: string, 
   c.drawRRect(Skia.RRectXY(Skia.XYWHRect(left - 3, y - 6, w + 6, 12), 3, 3), p);
   label(c, p, font, text, x, y, align, colour, a);
 }
+
 /** Drops whole words from the end until the text fits, so a label is never cut mid-word. */
 function fitText(font: SkFont | null, text: string, maxW: number) {
   "worklet";
@@ -189,6 +214,7 @@ function fitText(font: SkFont | null, text: string, maxW: number) {
   }
   return ws[0];
 }
+
 function axes(c: SkCanvas, p: SkPaint, font: SkFont | null, f: Frame, L: number, T: number, R: number, B: number, xl: string, yl: string) {
   "worklet";
   const k = beat(f, 0, 4);
@@ -202,169 +228,6 @@ function axes(c: SkCanvas, p: SkPaint, font: SkFont | null, f: Frame, L: number,
     label(c, p, font, yl, 0, 0, "center", LAB, k);
     c.restore();
   }
-}
-
-// ---- container: stuff moving between places ----
-function drawParticles(c: SkCanvas, p: SkPaint, font: SkFont | null, s: ParticlesScene, changes: Change[], f: Frame) {
-  "worklet";
-  const n = Math.max(1, s.zones.length);
-  const zw = VIEW_W / n;
-  const top = 16;
-  const bottom = 146;
-  const kDiv = beat(f, 0, 3);
-
-  for (let k = 1; k < n; k++) {
-    const x = k * zw;
-    if (s.divider === "membrane") line(c, p, x, 14, x, 150, 0.35, SIL, kDiv, [6, 7]);
-    else if (s.divider === "wall") line(c, p, x, 14, x, 150, 0.45, SIL, kDiv);
-    else if (s.divider === "sieve") for (let i = 0; i < 7; i++) line(c, p, x, 17 + i * 19, x, 25 + i * 19, 0.45 * kDiv, SIL, 1, undefined, 3);
-  }
-
-  // Bouncing marks, so collisions between different kinds can spark.
-  const hx: number[] = [];
-  const hy: number[] = [];
-  const hg: number[] = [];
-  const hf: boolean[] = [];
-
-  for (let g = 0; g < s.things.length; g++) {
-    const th = s.things[g];
-    const appear = has(changes, th.name, "appear");
-    const crosses = has(changes, th.name, "cross");
-    const fast = has(changes, th.name, "speed");
-    const grows = has(changes, th.name, "grow");
-    const lit = crosses || fast || grows;
-    const tm = fast ? f.T : f.t;
-    const x0 = th.zone * zw + 16;
-    const w = zw - 32;
-    const tx0 = th.to * zw + 16;
-    const h = bottom - top;
-    const cx = th.zone * zw + zw / 2;
-    const cy = (top + bottom) / 2;
-    const dense = th.count > 10;
-    let size = th.mark === "dot" ? (dense ? 3.2 : 3.6) : dense ? 7.5 : 9;
-    if (grows) size *= 0.55 + f.v * 1.0;
-
-    for (let i = 0; i < th.count; i++) {
-      const seed = g * 31 + i;
-      const ph = rnd(seed + 9) * TAU;
-      const bx = x0 + rnd(seed) * w;
-      const by = top + 6 + rnd(seed + 7) * (h - 12);
-      let x = bx;
-      let y = by;
-      let r = size;
-      let a = beat(f, 1 + g * 0.5 + i / th.count, 3);
-      if (appear) a *= clamp(f.v * th.count - i);
-
-      switch (th.motion) {
-        case "drift":
-          x = bx + Math.sin(tm * 0.6 + ph) * 2.5;
-          y = by + Math.cos(tm * 0.5 + ph) * 2.5;
-          break;
-        case "jiggle": {
-          // Bounce: straight lines off the walls. A short trail of fading dots
-          // shows speed, worked out from where the mark was a moment ago, so
-          // it bends round the walls with it. Slow marks leave almost none.
-          const vx = rnd(seed + 80) - 0.5;
-          const vy = rnd(seed + 120) - 0.5;
-          const ox = rnd(seed) * w;
-          const oy = rnd(seed + 7) * (h - 8);
-          x = x0 + bounce(ox + vx * tm * 50, w);
-          y = top + 4 + bounce(oy + vy * tm * 50, h - 8);
-          if (!f.still && th.mark !== "blocked") {
-            const sp = fast ? speedAt(changes, f.v) : 1;
-            for (let j = 1; j <= 3; j++) {
-              const back = tm - sp * 0.05 * j;
-              const gx = x0 + bounce(ox + vx * back * 50, w);
-              const gy = top + 4 + bounce(oy + vy * back * 50, h - 8);
-              // A trail dot hidden under its own mark would read as a second thing.
-              if ((gx - x) * (gx - x) + (gy - y) * (gy - y) <= (size + 2) * (size + 2)) continue;
-              dot(c, p, gx, gy, (th.mark === "dot" ? 2.2 : 2.6) * (1 - j * 0.2), a * (0.32 - j * 0.09));
-            }
-          }
-          if (hx.length < 40) {
-            hx.push(x);
-            hy.push(y);
-            hg.push(g);
-            hf.push(fast);
-          }
-          break;
-        }
-        case "cross": {
-          if (th.zone === th.to) break;
-          const q = (tm / 3.6 + rnd(seed + 3)) % 1;
-          if (th.mark === "blocked") {
-            const edge = th.to > th.zone ? (th.zone + 1) * zw - 14 : th.zone * zw + 14;
-            x = bx + (edge - bx) * Math.sin(q * Math.PI);
-          } else {
-            x = bx + (tx0 + rnd(seed) * w - bx) * ease2((q - 0.1) / 0.6);
-            a *= q < 0.08 ? q / 0.08 : q > 0.85 ? (1 - q) / 0.15 : 1;
-          }
-          break;
-        }
-        case "rise": {
-          // Bubbles: sway as they rise and swell a little near the top.
-          const q = (tm * 0.18 + rnd(seed + 3)) % 1;
-          y = bottom - q * h;
-          x = bx + Math.sin(q * TAU * 1.5 + ph) * 4;
-          r = size * (0.8 + q * 0.5);
-          a *= Math.sin(q * Math.PI);
-          break;
-        }
-        case "fall": {
-          // Grains: slow down as they sink, land on the floor, then fade.
-          const q = (tm * 0.14 + rnd(seed + 3)) % 1;
-          y = top + ease(q * 1.25) * (h - 4);
-          a *= q > 0.85 ? (1 - q) / 0.15 : Math.min(1, q / 0.08);
-          break;
-        }
-        case "orbit": {
-          const band = i % 3;
-          const ang = tm * 0.6 * (1 - band * 0.2) + i * 2.4;
-          x = cx + Math.cos(ang) * (16 + band * 14);
-          y = cy + Math.sin(ang) * (16 + band * 14) * 0.9;
-          break;
-        }
-        case "pulse":
-          r = size * (1 + 0.12 * Math.sin(tm * 1.8 + ph));
-          break;
-        case "flow": {
-          const q = (rnd(seed) + tm * 0.08) % 1;
-          x = 10 + q * (VIEW_W - 20);
-          a *= Math.min(1, q / 0.08, (1 - q) / 0.08);
-          break;
-        }
-        default:
-          break;
-      }
-
-      if (crosses && th.zone !== th.to) x += (tx0 - x0) * ease2(clamp(f.v * 0.85 * th.count - i));
-
-      if (th.mark === "dot") dot(c, p, x, y, r, a, lit && th.count <= 6 ? BLUE : SIL);
-      else if (th.mark === "ring") ring(c, p, x, y, r, a * 0.85);
-      else {
-        // Something stopped: a dim ring with a cross through it.
-        ring(c, p, x, y, r, a * 0.5);
-        const k = r * 0.42;
-        line(c, p, x - k, y - k, x + k, y + k, a * 0.5);
-        line(c, p, x + k, y - k, x - k, y + k, a * 0.5);
-      }
-    }
-  }
-  // Spark where two different kinds meet while things are moving fast.
-  if (f.v > 0.3 && !f.still) {
-    let sparks = 0;
-    for (let i = 0; i < hx.length && sparks < 6; i++)
-      for (let j = i + 1; j < hx.length && sparks < 6; j++) {
-        if (hg[i] === hg[j] || !(hf[i] || hf[j])) continue;
-        const dx = hx[i] - hx[j];
-        const dy = hy[i] - hy[j];
-        if (dx * dx + dy * dy < 144) {
-          spark(c, p, (hx[i] + hx[j]) / 2, (hy[i] + hy[j]) / 2, beat(f, 2, 3));
-          sparks++;
-        }
-      }
-  }
-  for (let k = 0; k < n; k++) label(c, p, font, s.zones[k], k * zw + zw / 2, 164, "center", LAB, beat(f, 2.5, 3));
 }
 
 // ---- path, fork, loop and network ----
@@ -572,101 +435,6 @@ function shapeY(shape: Shape, x: number, shift: number, stretch: number) {
   }
 }
 
-function drawGraph(c: SkCanvas, p: SkPaint, font: SkFont | null, s: GraphScene, changes: Change[], f: Frame) {
-  "worklet";
-  const L = 36;
-  const R = 280;
-  const T = 18;
-  const B = 144;
-  const X = (x: number) => L + x * (R - L);
-  const Y = (y: number) => B - clamp(y, -0.02, 1.02) * (B - T);
-  axes(c, p, font, f, L, T, R, B, s.x, s.y);
-
-  // The lit curve: the one the slider moves, else the second of two.
-  let litIndex = s.curves.length > 1 ? 1 : 0;
-  for (let i = 0; i < s.curves.length; i++) {
-    const n = s.curves[i].name;
-    if (has(changes, n, "shift") || has(changes, n, "stretch") || has(changes, n, "ride")) litIndex = i;
-  }
-  const shifts: number[] = [];
-  const stretches: number[] = [];
-  for (let i = 0; i < s.curves.length; i++) {
-    shifts.push(has(changes, s.curves[i].name, "shift") ? f.v * 0.28 : 0);
-    stretches.push(has(changes, s.curves[i].name, "stretch") ? 0.12 + f.v * 0.88 : 0.35);
-  }
-
-  for (let i = 0; i < s.curves.length; i++) {
-    const cv = s.curves[i];
-    const isLit = i === litIndex;
-    const stretched = has(changes, cv.name, "stretch");
-    const moved = shifts[i] > 0.005 || (stretched && f.v > 0.02);
-    for (let pass = moved ? 0 : 1; pass < 2; pass++) {
-      const ghost = pass === 0;
-      const sh = ghost ? 0 : shifts[i];
-      const st = ghost ? (stretched ? 0.12 : 0.35) : stretches[i];
-      const k = ghost ? 1 : beat(f, 1 + i, 4);
-      const path = Skia.PathBuilder.Make();
-      const end = 0.03 + 0.94 * k;
-      for (let j = 0; j <= 80; j++) {
-        const x = 0.03 + ((end - 0.03) * j) / 80;
-        if (j === 0) path.moveTo(X(x), Y(shapeY(cv.shape, x, sh, st)));
-        else path.lineTo(X(x), Y(shapeY(cv.shape, x, sh, st)));
-      }
-      stroke(p, isLit && !ghost ? BLUE : SIL, ghost ? 0.25 : isLit ? 1 : 0.55, W0, ghost ? [3, 6] : undefined);
-      c.drawPath(path.build(), p);
-      // Pen-tip light on the lit curve while it draws.
-      if (isLit && !ghost && k > 0.02 && k < 0.98) dot(c, p, X(end), Y(shapeY(cv.shape, end, sh, st)), 2.6, 1, BLUE);
-    }
-    if (cv.label) label(c, p, font, cv.label, X(0.97) + 6, Y(shapeY(cv.shape, 0.97, shifts[i], stretches[i])), "left", isLit ? BLUE : LAB, beat(f, 3, 4));
-  }
-
-  const lit = s.curves[litIndex];
-  const kH = beat(f, 3, 4);
-  if (s.highlight === "crossing" && s.curves.length > 1) {
-    let prev = 0;
-    let found = -1;
-    for (let k = 0; k <= 200; k++) {
-      const x = k / 200;
-      const d = shapeY(s.curves[0].shape, x, shifts[0], stretches[0]) - shapeY(s.curves[1].shape, x, shifts[1], stretches[1]);
-      if (k > 0 && (d === 0 || d > 0 !== prev > 0)) {
-        found = x;
-        break;
-      }
-      prev = d;
-    }
-    if (found >= 0) {
-      const px = X(found);
-      const py = Y(shapeY(s.curves[0].shape, found, shifts[0], stretches[0]));
-      line(c, p, px, py, px, B, 0.3, SIL, kH, [2, 5]);
-      line(c, p, px, py, L, py, 0.3, SIL, kH, [2, 5]);
-      dot(c, p, px, py, 4.5, kH);
-    }
-  } else if (s.highlight === "half") {
-    let idx = 0;
-    for (let i = 0; i < s.curves.length; i++) if (s.curves[i].shape === "saturate") idx = i;
-    const kx = shifts[idx] + 0.05 + stretches[idx] * 0.5;
-    line(c, p, L, Y(0.85), R, Y(0.85), 0.25, SIL, beat(f, 1, 4), [2, 5]);
-    label(c, p, font, "Max", R, Y(0.85) - 9, "right", LAB, beat(f, 1, 4));
-    line(c, p, L, Y(0.425), X(kx), Y(0.425), 0.3, SIL, kH, [2, 5]);
-    line(c, p, X(kx), Y(0.425), X(kx), B, 0.3, SIL, kH, [2, 5]);
-    label(c, p, font, "Half", L + 4, Y(0.425) - 9, "left", LAB, kH);
-    dot(c, p, X(kx), Y(0.425), 4.5, kH);
-  } else if (s.highlight === "end") {
-    dot(c, p, X(0.97), Y(shapeY(lit.shape, 0.97, shifts[litIndex], stretches[litIndex])), 4.5, kH);
-  }
-
-  const rides = has(changes, lit.name, "ride");
-  if (rides || s.highlight === "ride") {
-    const q = rides ? 0.05 + f.v * 0.9 : f.still ? 0.4 : 0.05 + ((f.t * 0.1) % 1) * 0.9;
-    const yq = shapeY(lit.shape, q, shifts[litIndex], stretches[litIndex]);
-    if (rides) {
-      line(c, p, X(q), Y(yq), X(q), B, 0.3, SIL, kH, [2, 5]);
-      line(c, p, X(q), Y(yq), L, Y(yq), 0.3, SIL, kH, [2, 5]);
-    }
-    dot(c, p, X(q), Y(yq), 4.2, kH * (rides || f.still ? 1 : Math.sin(((q - 0.05) / 0.9) * Math.PI)), BLUE);
-  }
-}
-
 // ---- balance: two sides being weighed ----
 function drawBalance(c: SkCanvas, p: SkPaint, font: SkFont | null, s: BalanceScene, changes: Change[], f: Frame) {
   "worklet";
@@ -714,6 +482,7 @@ function drawBalance(c: SkCanvas, p: SkPaint, font: SkFont | null, s: BalanceSce
 // ---- scale and comparison ----
 /** A growing item starts at a fifth of its value, so its ghost is still visible. */
 const GROW_FROM = 0.2;
+
 function drawCompare(c: SkCanvas, p: SkPaint, font: SkFont | null, s: CompareScene, changes: Change[], f: Frame) {
   "worklet";
   const n = s.items.length;
@@ -866,6 +635,7 @@ function poly(c: SkCanvas, p: SkPaint, pts: number[], a: number, colour: string,
     line(c, p, pts[i * 2], pts[i * 2 + 1], pts[i * 2 + 2], pts[i * 2 + 3], a, colour, seg);
   }
 }
+
 /** One small picture for one side of a pair. Each shape has one meaning. */
 function glyph(c: SkCanvas, p: SkPaint, side: PairSide, cx: number, cy: number, colour: string, k: number, live: boolean, f: Frame) {
   "worklet";
@@ -961,6 +731,7 @@ function glyph(c: SkCanvas, p: SkPaint, side: PairSide, cx: number, cy: number, 
     }
   }
 }
+
 function drawPair(c: SkCanvas, p: SkPaint, font: SkFont | null, s: PairScene, changes: Change[], f: Frame) {
   "worklet";
   const stepping = hasKind(changes, "step");
@@ -1142,34 +913,6 @@ function drawThreshold(c: SkCanvas, p: SkPaint, font: SkFont | null, s: Threshol
   label(c, p, font, s.level, TX + TW / 2, TB + 14, "center", LAB, beat(f, 2, 3));
 }
 
-// ---- units: how many out of 100 ----
-// A ten by ten field of dots; the lit ones are counted in from the top left.
-// They are lit as a group, so they carry no halo.
-function drawUnits(c: SkCanvas, p: SkPaint, font: SkFont | null, s: UnitsScene, changes: Change[], f: Frame) {
-  "worklet";
-  const growing = hasKind(changes, "grow");
-  const X0 = 30;
-  const Y0 = 26;
-  const P = 12.6;
-  const shown = Math.round(s.lit * (growing ? f.v : beat(f, 2.4, 3)));
-  for (let i = 0; i < 100; i++) {
-    const r = Math.floor(i / 10);
-    const col = i % 10;
-    const a = beat(f, (r / 10) * 1.6, 3);
-    const lit = i < shown;
-    // Counted in little pictures (people, coins) when the lesson names one, as in Isotype.
-    if (s.thing && THINGS[s.thing]) drawThing(c, p, s.thing, X0 + col * P, Y0 + r * P, 5, lit ? a : a * 0.5, lit, 1, 1.1, false);
-    else dot(c, p, X0 + col * P, Y0 + r * P, lit ? 2.9 : 2.5, lit ? a : a * 0.45, lit ? BLUE : SIL);
-  }
-  const kLab = beat(f, 2, 3);
-  label(c, p, font, `${shown} in 100`, 172, 64, "left", SIL, kLab);
-  label(c, p, font, s.label, 172, 78, "left", LAB, kLab);
-  if (s.rest) {
-    label(c, p, font, `${100 - shown} in 100`, 172, 106, "left", LAB, kLab);
-    label(c, p, font, s.rest, 172, 120, "left", LAB, kLab * 0.8);
-  }
-}
-
 // ---- crowd: which one stands out ----
 // Many quiet grey lines with the same shape, then one drawn on lit and named
 // at its end.
@@ -1179,6 +922,7 @@ function crowdY(shape: string, u: number, off: number) {
   if (shape === "fall") return 0.75 - 0.55 * u + off;
   return 0.45 + off;
 }
+
 function standoutY(s: CrowdScene, u: number) {
   "worklet";
   const bump = Math.exp(-((u - 0.62) * (u - 0.62)) / 0.012);
@@ -1186,6 +930,7 @@ function standoutY(s: CrowdScene, u: number) {
   if (s.litShape === "dip") return crowdY(s.crowd, u, 0) - 0.3 * bump;
   return crowdY(s.litShape, u, 0);
 }
+
 function drawCrowd(c: SkCanvas, p: SkPaint, font: SkFont | null, s: CrowdScene, changes: Change[], f: Frame) {
   "worklet";
   const L = 36;
@@ -1235,6 +980,102 @@ function pass(c: SkCanvas, p: SkPaint, x1: number, y1: number, x2: number, y2: n
   line(c, p, x1 + (x2 - x1) * q0, y1 + (y2 - y1) * q0, x1 + (x2 - x1) * k, y1 + (y2 - y1) * k, 1, BLUE, 1, undefined, W0 + 0.6);
   dot(c, p, x1 + (x2 - x1) * k, y1 + (y2 - y1) * k, 2.6, 1, BLUE);
 }
+
+function drawGraph(c: SkCanvas, p: SkPaint, font: SkFont | null, s: GraphScene, changes: Change[], f: Frame) {
+  "worklet";
+  const L = 36;
+  const R = 280;
+  const T = 18;
+  const B = 144;
+  const X = (x: number) => L + x * (R - L);
+  const Y = (y: number) => B - clamp(y, -0.02, 1.02) * (B - T);
+  axes(c, p, font, f, L, T, R, B, s.x, s.y);
+
+  // The lit curve: the one the slider moves, else the second of two.
+  let litIndex = s.curves.length > 1 ? 1 : 0;
+  for (let i = 0; i < s.curves.length; i++) {
+    const n = s.curves[i].name;
+    if (has(changes, n, "shift") || has(changes, n, "stretch") || has(changes, n, "ride")) litIndex = i;
+  }
+  const shifts: number[] = [];
+  const stretches: number[] = [];
+  for (let i = 0; i < s.curves.length; i++) {
+    shifts.push(has(changes, s.curves[i].name, "shift") ? f.v * 0.28 : 0);
+    stretches.push(has(changes, s.curves[i].name, "stretch") ? 0.12 + f.v * 0.88 : 0.35);
+  }
+
+  for (let i = 0; i < s.curves.length; i++) {
+    const cv = s.curves[i];
+    const isLit = i === litIndex;
+    const stretched = has(changes, cv.name, "stretch");
+    const moved = shifts[i] > 0.005 || (stretched && f.v > 0.02);
+    for (let pass = moved ? 0 : 1; pass < 2; pass++) {
+      const ghost = pass === 0;
+      const sh = ghost ? 0 : shifts[i];
+      const st = ghost ? (stretched ? 0.12 : 0.35) : stretches[i];
+      const k = ghost ? 1 : beat(f, 1 + i, 4);
+      const path = Skia.PathBuilder.Make();
+      const end = 0.03 + 0.94 * k;
+      for (let j = 0; j <= 80; j++) {
+        const x = 0.03 + ((end - 0.03) * j) / 80;
+        if (j === 0) path.moveTo(X(x), Y(shapeY(cv.shape, x, sh, st)));
+        else path.lineTo(X(x), Y(shapeY(cv.shape, x, sh, st)));
+      }
+      stroke(p, isLit && !ghost ? BLUE : SIL, ghost ? 0.25 : isLit ? 1 : 0.55, W0, ghost ? [3, 6] : undefined);
+      c.drawPath(path.build(), p);
+      // Pen-tip light on the lit curve while it draws.
+      if (isLit && !ghost && k > 0.02 && k < 0.98) dot(c, p, X(end), Y(shapeY(cv.shape, end, sh, st)), 2.6, 1, BLUE);
+    }
+    if (cv.label) label(c, p, font, cv.label, X(0.97) + 6, Y(shapeY(cv.shape, 0.97, shifts[i], stretches[i])), "left", isLit ? BLUE : LAB, beat(f, 3, 4));
+  }
+
+  const lit = s.curves[litIndex];
+  const kH = beat(f, 3, 4);
+  if (s.highlight === "crossing" && s.curves.length > 1) {
+    let prev = 0;
+    let found = -1;
+    for (let k = 0; k <= 200; k++) {
+      const x = k / 200;
+      const d = shapeY(s.curves[0].shape, x, shifts[0], stretches[0]) - shapeY(s.curves[1].shape, x, shifts[1], stretches[1]);
+      if (k > 0 && (d === 0 || d > 0 !== prev > 0)) {
+        found = x;
+        break;
+      }
+      prev = d;
+    }
+    if (found >= 0) {
+      const px = X(found);
+      const py = Y(shapeY(s.curves[0].shape, found, shifts[0], stretches[0]));
+      line(c, p, px, py, px, B, 0.3, SIL, kH, [2, 5]);
+      line(c, p, px, py, L, py, 0.3, SIL, kH, [2, 5]);
+      dot(c, p, px, py, 4.5, kH);
+    }
+  } else if (s.highlight === "half") {
+    let idx = 0;
+    for (let i = 0; i < s.curves.length; i++) if (s.curves[i].shape === "saturate") idx = i;
+    const kx = shifts[idx] + 0.05 + stretches[idx] * 0.5;
+    line(c, p, L, Y(0.85), R, Y(0.85), 0.25, SIL, beat(f, 1, 4), [2, 5]);
+    label(c, p, font, "Max", R, Y(0.85) - 9, "right", LAB, beat(f, 1, 4));
+    line(c, p, L, Y(0.425), X(kx), Y(0.425), 0.3, SIL, kH, [2, 5]);
+    line(c, p, X(kx), Y(0.425), X(kx), B, 0.3, SIL, kH, [2, 5]);
+    label(c, p, font, "Half", L + 4, Y(0.425) - 9, "left", LAB, kH);
+    dot(c, p, X(kx), Y(0.425), 4.5, kH);
+  } else if (s.highlight === "end") {
+    dot(c, p, X(0.97), Y(shapeY(lit.shape, 0.97, shifts[litIndex], stretches[litIndex])), 4.5, kH);
+  }
+
+  const rides = has(changes, lit.name, "ride");
+  if (rides || s.highlight === "ride") {
+    const q = rides ? 0.05 + f.v * 0.9 : f.still ? 0.4 : 0.05 + ((f.t * 0.1) % 1) * 0.9;
+    const yq = shapeY(lit.shape, q, shifts[litIndex], stretches[litIndex]);
+    if (rides) {
+      line(c, p, X(q), Y(yq), X(q), B, 0.3, SIL, kH, [2, 5]);
+      line(c, p, X(q), Y(yq), L, Y(yq), 0.3, SIL, kH, [2, 5]);
+    }
+    dot(c, p, X(q), Y(yq), 4.2, kH * (rides || f.still ? 1 : Math.sin(((q - 0.05) / 0.9) * Math.PI)), BLUE);
+  }
+}
+
 /** A polyline through points [x0, y0, x1, y1, ...]. */
 function strokePts(c: SkCanvas, p: SkPaint, pts: number[], a: number, colour = SIL, w = W0, dash?: number[]) {
   "worklet";
@@ -1245,6 +1086,7 @@ function strokePts(c: SkCanvas, p: SkPaint, pts: number[], a: number, colour = S
   stroke(p, colour, a, w, dash);
   c.drawPath(path.build(), p);
 }
+
 /** A filled shape through points. */
 function fillPts(c: SkCanvas, p: SkPaint, pts: number[], a: number, colour: string) {
   "worklet";
@@ -1256,6 +1098,7 @@ function fillPts(c: SkCanvas, p: SkPaint, pts: number[], a: number, colour: stri
   fill(p, colour, a);
   c.drawPath(path.build(), p);
 }
+
 /** Points round an arc, angles in radians. */
 function arcPts(cx: number, cy: number, r: number, a0: number, a1: number, n: number) {
   "worklet";
@@ -1266,6 +1109,7 @@ function arcPts(cx: number, cy: number, r: number, a0: number, a1: number, n: nu
   }
   return pts;
 }
+
 /** A soft box: outlined, or lit with a wash of blue. */
 function box(c: SkCanvas, p: SkPaint, x: number, y: number, w: number, h: number, a: number, lit: boolean, r = 4) {
   "worklet";
@@ -1278,10 +1122,12 @@ function box(c: SkCanvas, p: SkPaint, x: number, y: number, w: number, h: number
   stroke(p, lit ? BLUE : SIL, lit ? a : 0.55 * a, lit ? W0 + 0.4 : W0);
   c.drawRRect(rr, p);
 }
+
 function textW(font: SkFont | null, text: string) {
   "worklet";
   return font ? font.getTextWidth(text) : text.length * 5;
 }
+
 /** 1000 as "1,000". */
 function fmt(n: number) {
   "worklet";
@@ -1294,10 +1140,12 @@ function fmt(n: number) {
   }
   return (r < 0 ? "-" : "") + out;
 }
+
 function pct(share: number) {
   "worklet";
   return `${share >= 10 ? Math.round(share) : Math.round(share * 10) / 10}%`;
 }
+
 /** Text alignment that keeps a label inside the panel. */
 function alignAt(x: number) {
   "worklet";
@@ -2112,6 +1960,7 @@ function thingHalo(c: SkCanvas, x: number, y: number, h: number, a: number) {
   hp.setMaskFilter(Skia.MaskFilter.MakeBlur(0, Math.min(12, 3 + h * 0.3), true));
   c.drawCircle(x, y, h * 0.85, hp);
 }
+
 /** Draws a thing centred on (x, y), half its size h, built on mark by mark as k goes from 0 to 1. */
 export function drawThing(c: SkCanvas, p: SkPaint, name: string, x: number, y: number, h: number, a: number, lit: boolean, k = 1, w = W0, glow = true) {
   "worklet";
@@ -2164,6 +2013,125 @@ export function drawThing(c: SkCanvas, p: SkPaint, name: string, x: number, y: n
       c.drawPath(path.build(), p);
     }
   }
+}
+
+// ---- units: how many out of 100 ----
+// A ten by ten field of dots; the lit ones are counted in from the top left.
+// They are lit as a group, so they carry no halo.
+function drawUnits(c: SkCanvas, p: SkPaint, font: SkFont | null, s: UnitsScene, changes: Change[], f: Frame) {
+  "worklet";
+  const growing = hasKind(changes, "grow");
+  const X0 = 30;
+  const Y0 = 26;
+  const P = 12.6;
+  const shown = Math.round(s.lit * (growing ? f.v : beat(f, 2.4, 3)));
+  for (let i = 0; i < 100; i++) {
+    const r = Math.floor(i / 10);
+    const col = i % 10;
+    const a = beat(f, (r / 10) * 1.6, 3);
+    const lit = i < shown;
+    // Counted in little pictures (people, coins) when the lesson names one, as in Isotype.
+    if (s.thing && THINGS[s.thing]) drawThing(c, p, s.thing, X0 + col * P, Y0 + r * P, 5, lit ? a : a * 0.5, lit, 1, 1.1, false);
+    else dot(c, p, X0 + col * P, Y0 + r * P, lit ? 2.9 : 2.5, lit ? a : a * 0.45, lit ? BLUE : SIL);
+  }
+  const kLab = beat(f, 2, 3);
+  label(c, p, font, `${shown} in 100`, 172, 64, "left", SIL, kLab);
+  label(c, p, font, s.label, 172, 78, "left", LAB, kLab);
+  if (s.rest) {
+    label(c, p, font, `${100 - shown} in 100`, 172, 106, "left", LAB, kLab);
+    label(c, p, font, s.rest, 172, 120, "left", LAB, kLab * 0.8);
+  }
+}
+
+/** Where each spot sits on a thing, in its box from -1 to 1. */
+const SPOT: Record<string, [number, number]> = {
+  top: [0, -0.62], bottom: [0, 0.62], left: [-0.62, 0], right: [0.62, 0], centre: [0, 0],
+  "top left": [-0.48, -0.48], "top right": [0.48, -0.48], "bottom left": [-0.48, 0.48], "bottom right": [0.48, 0.48],
+};
+
+/**
+ * One thing drawn big, with its parts named: a labelled diagram. Each part gets
+ * a dot where it sits and a thin leader out to its name at the side, names never
+ * crossing. The light moves through the parts (or rests on the lit one).
+ */
+function drawParts(c: SkCanvas, p: SkPaint, font: SkFont | null, s: ThingsScene, parts: { label: string; at: string }[], stepping: boolean, f: Frame) {
+  "worklet";
+  const CX = 150;
+  const CY = 86;
+  const H = 50;
+  const n = parts.length;
+  const litI = stepping ? Math.min(n - 1, Math.floor(f.v * n)) : s.lit;
+  const kL = stepping ? 1 : beat(f, 2.6, 3);
+  drawThing(c, p, s.items[0].thing, CX, CY, H, 1, false, beat(f, 0.2, 3));
+  // Left or right by where the part is; middle ones go to the emptier side.
+  const side: number[] = [];
+  let nl = 0;
+  let nr = 0;
+  for (let i = 0; i < n; i++) {
+    const sx = (SPOT[parts[i].at] ?? SPOT.centre)[0];
+    const sd = sx < 0 ? -1 : sx > 0 ? 1 : nl <= nr ? -1 : 1;
+    side.push(sd);
+    if (sd < 0) nl++;
+    else nr++;
+  }
+  // Names on each side keep the parts' top to bottom order, at least 22 apart.
+  const ly: number[] = [];
+  for (let i = 0; i < n; i++) ly.push(0);
+  for (const sd of [-1, 1]) {
+    const idx: number[] = [];
+    for (let i = 0; i < n; i++) if (side[i] === sd) idx.push(i);
+    idx.sort((a, b) => (SPOT[parts[a].at] ?? SPOT.centre)[1] - (SPOT[parts[b].at] ?? SPOT.centre)[1]);
+    let last = -999;
+    for (const i of idx) {
+      const want = CY + (SPOT[parts[i].at] ?? SPOT.centre)[1] * H;
+      ly[i] = Math.max(want, last + 26);
+      last = ly[i];
+    }
+    // If the stack ran off the bottom, slide it all back up.
+    const over = last - 160;
+    if (over > 0) for (const i of idx) ly[i] -= over;
+  }
+  for (let i = 0; i < n; i++) {
+    const sp = SPOT[parts[i].at] ?? SPOT.centre;
+    const ax = CX + sp[0] * H;
+    const ay = CY + sp[1] * H;
+    const k = beat(f, 1 + (i / n) * 1.4, 3);
+    const lit = i === litI && kL > 0.5;
+    const ex = side[i] < 0 ? CX - H - 10 : CX + H + 10;
+    // Leader: from the part, level with its name, out past the drawing.
+    if (k > 0.01) strokePts(c, p, [ax, ay, ex, ly[i], ex + side[i] * 8, ly[i]], 0.35 * k, SIL, W0 * 0.8);
+    dot(c, p, ax, ay, lit ? 3.2 : 2.2, k, lit ? BLUE : SIL);
+    const room = side[i] < 0 ? ex - 11 - 4 : 300 - (ex + 11) - 4;
+    const al = side[i] < 0 ? "right" : "left";
+    const col = lit ? SIL : LAB;
+    const txt = parts[i].label;
+    const ws = txt.split(" ");
+    if (textW(font, txt) <= room || ws.length < 2) label(c, p, font, fitText(font, txt, room), ex + side[i] * 11, ly[i] + 3, al, col, k);
+    else {
+      // Too long for one line: two lines, the break where they are most even.
+      let best = 1;
+      let bestW = 1e9;
+      for (let j = 1; j < ws.length; j++) {
+        const w = Math.max(textW(font, ws.slice(0, j).join(" ")), textW(font, ws.slice(j).join(" ")));
+        if (w < bestW) { bestW = w; best = j; }
+      }
+      label(c, p, font, fitText(font, ws.slice(0, best).join(" "), room), ex + side[i] * 11, ly[i] - 2, al, col, k);
+      label(c, p, font, fitText(font, ws.slice(best).join(" "), room), ex + side[i] * 11, ly[i] + 9, al, col, k);
+    }
+  }
+  if (s.items[0].label) label(c, p, font, s.items[0].label, CX, 170, "center", LAB, beat(f, 0.6, 3));
+}
+
+/** Points round an ellipse, drawn on up to k of the way. */
+function ellipsePts(cx: number, cy: number, rx: number, ry: number, k: number) {
+  "worklet";
+  const pts: number[] = [];
+  const m = Math.max(2, Math.round(64 * k));
+  for (let i = 0; i <= m; i++) {
+    const a = -Math.PI / 2 + (TAU * k * i) / m;
+    pts.push(cx + rx * Math.cos(a), cy + ry * Math.sin(a));
+  }
+  return pts;
 }
 
 // ---- things: what is it, who is involved, what does it look like? ----
@@ -2273,94 +2241,6 @@ function drawThings(c: SkCanvas, p: SkPaint, font: SkFont | null, s: ThingsScene
     }
   }
 }
-/** Where each spot sits on a thing, in its box from -1 to 1. */
-const SPOT: Record<string, [number, number]> = {
-  top: [0, -0.62], bottom: [0, 0.62], left: [-0.62, 0], right: [0.62, 0], centre: [0, 0],
-  "top left": [-0.48, -0.48], "top right": [0.48, -0.48], "bottom left": [-0.48, 0.48], "bottom right": [0.48, 0.48],
-};
-/**
- * One thing drawn big, with its parts named: a labelled diagram. Each part gets
- * a dot where it sits and a thin leader out to its name at the side, names never
- * crossing. The light moves through the parts (or rests on the lit one).
- */
-function drawParts(c: SkCanvas, p: SkPaint, font: SkFont | null, s: ThingsScene, parts: { label: string; at: string }[], stepping: boolean, f: Frame) {
-  "worklet";
-  const CX = 150;
-  const CY = 86;
-  const H = 50;
-  const n = parts.length;
-  const litI = stepping ? Math.min(n - 1, Math.floor(f.v * n)) : s.lit;
-  const kL = stepping ? 1 : beat(f, 2.6, 3);
-  drawThing(c, p, s.items[0].thing, CX, CY, H, 1, false, beat(f, 0.2, 3));
-  // Left or right by where the part is; middle ones go to the emptier side.
-  const side: number[] = [];
-  let nl = 0;
-  let nr = 0;
-  for (let i = 0; i < n; i++) {
-    const sx = (SPOT[parts[i].at] ?? SPOT.centre)[0];
-    const sd = sx < 0 ? -1 : sx > 0 ? 1 : nl <= nr ? -1 : 1;
-    side.push(sd);
-    if (sd < 0) nl++;
-    else nr++;
-  }
-  // Names on each side keep the parts' top to bottom order, at least 22 apart.
-  const ly: number[] = [];
-  for (let i = 0; i < n; i++) ly.push(0);
-  for (const sd of [-1, 1]) {
-    const idx: number[] = [];
-    for (let i = 0; i < n; i++) if (side[i] === sd) idx.push(i);
-    idx.sort((a, b) => (SPOT[parts[a].at] ?? SPOT.centre)[1] - (SPOT[parts[b].at] ?? SPOT.centre)[1]);
-    let last = -999;
-    for (const i of idx) {
-      const want = CY + (SPOT[parts[i].at] ?? SPOT.centre)[1] * H;
-      ly[i] = Math.max(want, last + 26);
-      last = ly[i];
-    }
-    // If the stack ran off the bottom, slide it all back up.
-    const over = last - 160;
-    if (over > 0) for (const i of idx) ly[i] -= over;
-  }
-  for (let i = 0; i < n; i++) {
-    const sp = SPOT[parts[i].at] ?? SPOT.centre;
-    const ax = CX + sp[0] * H;
-    const ay = CY + sp[1] * H;
-    const k = beat(f, 1 + (i / n) * 1.4, 3);
-    const lit = i === litI && kL > 0.5;
-    const ex = side[i] < 0 ? CX - H - 10 : CX + H + 10;
-    // Leader: from the part, level with its name, out past the drawing.
-    if (k > 0.01) strokePts(c, p, [ax, ay, ex, ly[i], ex + side[i] * 8, ly[i]], 0.35 * k, SIL, W0 * 0.8);
-    dot(c, p, ax, ay, lit ? 3.2 : 2.2, k, lit ? BLUE : SIL);
-    const room = side[i] < 0 ? ex - 11 - 4 : 300 - (ex + 11) - 4;
-    const al = side[i] < 0 ? "right" : "left";
-    const col = lit ? SIL : LAB;
-    const txt = parts[i].label;
-    const ws = txt.split(" ");
-    if (textW(font, txt) <= room || ws.length < 2) label(c, p, font, fitText(font, txt, room), ex + side[i] * 11, ly[i] + 3, al, col, k);
-    else {
-      // Too long for one line: two lines, the break where they are most even.
-      let best = 1;
-      let bestW = 1e9;
-      for (let j = 1; j < ws.length; j++) {
-        const w = Math.max(textW(font, ws.slice(0, j).join(" ")), textW(font, ws.slice(j).join(" ")));
-        if (w < bestW) { bestW = w; best = j; }
-      }
-      label(c, p, font, fitText(font, ws.slice(0, best).join(" "), room), ex + side[i] * 11, ly[i] - 2, al, col, k);
-      label(c, p, font, fitText(font, ws.slice(best).join(" "), room), ex + side[i] * 11, ly[i] + 9, al, col, k);
-    }
-  }
-  if (s.items[0].label) label(c, p, font, s.items[0].label, CX, 170, "center", LAB, beat(f, 0.6, 3));
-}
-/** Points round an ellipse, drawn on up to k of the way. */
-function ellipsePts(cx: number, cy: number, rx: number, ry: number, k: number) {
-  "worklet";
-  const pts: number[] = [];
-  const m = Math.max(2, Math.round(64 * k));
-  for (let i = 0; i <= m; i++) {
-    const a = -Math.PI / 2 + (TAU * k * i) / m;
-    pts.push(cx + rx * Math.cos(a), cy + ry * Math.sin(a));
-  }
-  return pts;
-}
 
 // ---- hand-drawn lines (Dan Koe feel) ----
 // A wrapper round the canvas and paint that gives straight lines and outlined
@@ -2370,6 +2250,7 @@ function wobble(s: number, seed: number) {
   "worklet";
   return 0.55 * Math.sin(s * 0.085 + seed) + 0.25 * Math.sin(s * 0.21 + seed * 1.7);
 }
+
 function handPaint(real: SkPaint) {
   "worklet";
   const hp = {
@@ -2406,6 +2287,7 @@ function handPaint(real: SkPaint) {
   };
   return hp;
 }
+
 function handCanvas(c: SkCanvas) {
   "worklet";
   const unwrap = (p: { real?: SkPaint } | SkPaint) => ((p as { real?: SkPaint }).real ? (p as { real: SkPaint }).real : (p as SkPaint));
@@ -2516,6 +2398,175 @@ function handCanvas(c: SkCanvas) {
   };
 }
 
+/** How fast the scene's clock runs at slider value v, when the slider changes speed. */
+export function speedAt(changes: Change[], v: number) {
+  "worklet";
+  return hasKind(changes, "speed") ? 0.2 + v * 3 : 1;
+}
+
+// ---- container: stuff moving between places ----
+function drawParticles(c: SkCanvas, p: SkPaint, font: SkFont | null, s: ParticlesScene, changes: Change[], f: Frame) {
+  "worklet";
+  const n = Math.max(1, s.zones.length);
+  const zw = VIEW_W / n;
+  const top = 16;
+  const bottom = 146;
+  const kDiv = beat(f, 0, 3);
+
+  for (let k = 1; k < n; k++) {
+    const x = k * zw;
+    if (s.divider === "membrane") line(c, p, x, 14, x, 150, 0.35, SIL, kDiv, [6, 7]);
+    else if (s.divider === "wall") line(c, p, x, 14, x, 150, 0.45, SIL, kDiv);
+    else if (s.divider === "sieve") for (let i = 0; i < 7; i++) line(c, p, x, 17 + i * 19, x, 25 + i * 19, 0.45 * kDiv, SIL, 1, undefined, 3);
+  }
+
+  // Bouncing marks, so collisions between different kinds can spark.
+  const hx: number[] = [];
+  const hy: number[] = [];
+  const hg: number[] = [];
+  const hf: boolean[] = [];
+
+  for (let g = 0; g < s.things.length; g++) {
+    const th = s.things[g];
+    const appear = has(changes, th.name, "appear");
+    const crosses = has(changes, th.name, "cross");
+    const fast = has(changes, th.name, "speed");
+    const grows = has(changes, th.name, "grow");
+    const lit = crosses || fast || grows;
+    const tm = fast ? f.T : f.t;
+    const x0 = th.zone * zw + 16;
+    const w = zw - 32;
+    const tx0 = th.to * zw + 16;
+    const h = bottom - top;
+    const cx = th.zone * zw + zw / 2;
+    const cy = (top + bottom) / 2;
+    const dense = th.count > 10;
+    let size = th.mark === "dot" ? (dense ? 3.2 : 3.6) : dense ? 7.5 : 9;
+    if (grows) size *= 0.55 + f.v * 1.0;
+
+    for (let i = 0; i < th.count; i++) {
+      const seed = g * 31 + i;
+      const ph = rnd(seed + 9) * TAU;
+      const bx = x0 + rnd(seed) * w;
+      const by = top + 6 + rnd(seed + 7) * (h - 12);
+      let x = bx;
+      let y = by;
+      let r = size;
+      let a = beat(f, 1 + g * 0.5 + i / th.count, 3);
+      if (appear) a *= clamp(f.v * th.count - i);
+
+      switch (th.motion) {
+        case "drift":
+          x = bx + Math.sin(tm * 0.6 + ph) * 2.5;
+          y = by + Math.cos(tm * 0.5 + ph) * 2.5;
+          break;
+        case "jiggle": {
+          // Bounce: straight lines off the walls. A short trail of fading dots
+          // shows speed, worked out from where the mark was a moment ago, so
+          // it bends round the walls with it. Slow marks leave almost none.
+          const vx = rnd(seed + 80) - 0.5;
+          const vy = rnd(seed + 120) - 0.5;
+          const ox = rnd(seed) * w;
+          const oy = rnd(seed + 7) * (h - 8);
+          x = x0 + bounce(ox + vx * tm * 50, w);
+          y = top + 4 + bounce(oy + vy * tm * 50, h - 8);
+          if (!f.still && th.mark !== "blocked") {
+            const sp = fast ? speedAt(changes, f.v) : 1;
+            for (let j = 1; j <= 3; j++) {
+              const back = tm - sp * 0.05 * j;
+              const gx = x0 + bounce(ox + vx * back * 50, w);
+              const gy = top + 4 + bounce(oy + vy * back * 50, h - 8);
+              // A trail dot hidden under its own mark would read as a second thing.
+              if ((gx - x) * (gx - x) + (gy - y) * (gy - y) <= (size + 2) * (size + 2)) continue;
+              dot(c, p, gx, gy, (th.mark === "dot" ? 2.2 : 2.6) * (1 - j * 0.2), a * (0.32 - j * 0.09));
+            }
+          }
+          if (hx.length < 40) {
+            hx.push(x);
+            hy.push(y);
+            hg.push(g);
+            hf.push(fast);
+          }
+          break;
+        }
+        case "cross": {
+          if (th.zone === th.to) break;
+          const q = (tm / 3.6 + rnd(seed + 3)) % 1;
+          if (th.mark === "blocked") {
+            const edge = th.to > th.zone ? (th.zone + 1) * zw - 14 : th.zone * zw + 14;
+            x = bx + (edge - bx) * Math.sin(q * Math.PI);
+          } else {
+            x = bx + (tx0 + rnd(seed) * w - bx) * ease2((q - 0.1) / 0.6);
+            a *= q < 0.08 ? q / 0.08 : q > 0.85 ? (1 - q) / 0.15 : 1;
+          }
+          break;
+        }
+        case "rise": {
+          // Bubbles: sway as they rise and swell a little near the top.
+          const q = (tm * 0.18 + rnd(seed + 3)) % 1;
+          y = bottom - q * h;
+          x = bx + Math.sin(q * TAU * 1.5 + ph) * 4;
+          r = size * (0.8 + q * 0.5);
+          a *= Math.sin(q * Math.PI);
+          break;
+        }
+        case "fall": {
+          // Grains: slow down as they sink, land on the floor, then fade.
+          const q = (tm * 0.14 + rnd(seed + 3)) % 1;
+          y = top + ease(q * 1.25) * (h - 4);
+          a *= q > 0.85 ? (1 - q) / 0.15 : Math.min(1, q / 0.08);
+          break;
+        }
+        case "orbit": {
+          const band = i % 3;
+          const ang = tm * 0.6 * (1 - band * 0.2) + i * 2.4;
+          x = cx + Math.cos(ang) * (16 + band * 14);
+          y = cy + Math.sin(ang) * (16 + band * 14) * 0.9;
+          break;
+        }
+        case "pulse":
+          r = size * (1 + 0.12 * Math.sin(tm * 1.8 + ph));
+          break;
+        case "flow": {
+          const q = (rnd(seed) + tm * 0.08) % 1;
+          x = 10 + q * (VIEW_W - 20);
+          a *= Math.min(1, q / 0.08, (1 - q) / 0.08);
+          break;
+        }
+        default:
+          break;
+      }
+
+      if (crosses && th.zone !== th.to) x += (tx0 - x0) * ease2(clamp(f.v * 0.85 * th.count - i));
+
+      if (th.mark === "dot") dot(c, p, x, y, r, a, lit && th.count <= 6 ? BLUE : SIL);
+      else if (th.mark === "ring") ring(c, p, x, y, r, a * 0.85);
+      else {
+        // Something stopped: a dim ring with a cross through it.
+        ring(c, p, x, y, r, a * 0.5);
+        const k = r * 0.42;
+        line(c, p, x - k, y - k, x + k, y + k, a * 0.5);
+        line(c, p, x + k, y - k, x - k, y + k, a * 0.5);
+      }
+    }
+  }
+  // Spark where two different kinds meet while things are moving fast.
+  if (f.v > 0.3 && !f.still) {
+    let sparks = 0;
+    for (let i = 0; i < hx.length && sparks < 6; i++)
+      for (let j = i + 1; j < hx.length && sparks < 6; j++) {
+        if (hg[i] === hg[j] || !(hf[i] || hf[j])) continue;
+        const dx = hx[i] - hx[j];
+        const dy = hy[i] - hy[j];
+        if (dx * dx + dy * dy < 144) {
+          spark(c, p, (hx[i] + hx[j]) / 2, (hy[i] + hy[j]) / 2, beat(f, 2, 3));
+          sparks++;
+        }
+      }
+  }
+  for (let k = 0; k < n; k++) label(c, p, font, s.zones[k], k * zw + zw / 2, 164, "center", LAB, beat(f, 2.5, 3));
+}
+
 export function drawScene(canvas: SkCanvas, scene: Scene, changes: Change[], f: Frame, font: SkFont | null) {
   "worklet";
   const paint = Skia.Paint();
@@ -2615,10 +2666,4 @@ export function drawScene(canvas: SkCanvas, scene: Scene, changes: Change[], f: 
       drawThings(c, p, font, scene, changes, f);
       break;
   }
-}
-
-/** How fast the scene's clock runs at slider value v, when the slider changes speed. */
-export function speedAt(changes: Change[], v: number) {
-  "worklet";
-  return hasKind(changes, "speed") ? 0.2 + v * 3 : 1;
 }
