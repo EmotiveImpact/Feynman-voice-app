@@ -61,7 +61,8 @@ function clock(seconds: number) {
 export default function Session() {
   // A review card opens the session on its own topic and question.
   // A gap card opens it on that gap (focus), with "Go on, tell me in your own words."
-  const params = useLocalSearchParams<{ topic?: string; prompt?: string; goal?: string; focus?: string; focusId?: string }>();
+  // "Teach me first" (teach=1) opens the lesson straight away, before any explaining.
+  const params = useLocalSearchParams<{ topic?: string; prompt?: string; goal?: string; focus?: string; focusId?: string; teach?: string }>();
   const topic = params.topic?.trim() || "Anything you like";
   // Their goal for the topic, in their words, steers Fenny's questions.
   const [goal] = useState(() => params.goal?.trim() || findTopic(topic)?.goal || "");
@@ -169,16 +170,26 @@ export default function Session() {
     } else router.back();
   };
   // Teach me: the call steps aside for a short lesson on the stuck idea.
-  const [teaching, setTeaching] = useState<{ idea: string; said?: string } | null>(null);
+  // Opened with "Teach me first": the lesson is up before anything else.
+  const [teaching, setTeaching] = useState<{ idea: string; said?: string } | null>(() => (params.teach === "1" ? { idea: firstIdea(topic, focus) } : null));
   const openTeach = () => {
     if (!loop.teach) return;
     loop.cancel();
     setTeaching({ idea: loop.teach.idea, said: lastYou });
   };
+  // Teach me first: a lesson on the whole topic (or the gap they came for)
+  // before they explain anything, with no need to tell Fenny they're new to it.
+  const callStarted = loop.turns.length > 0;
+  const teachFirst = () => {
+    loop.cancel();
+    setTeaching({ idea: firstIdea(topic, focus) });
+  };
+  const offerTeachFirst = !callStarted && !teaching && (loop.phase === "ready" || loop.phase === "loading");
   const closeTeach = () => {
     setTeaching(null);
     loop.dismissTeach();
-    loop.start().catch(() => {});
+    // Left a lesson they opened before the call: back to the start, mic still off.
+    if (callStarted) loop.start().catch(() => {});
   };
   // They said yes out loud: open it once Fenny has finished speaking.
   useEffect(() => {
@@ -295,6 +306,13 @@ export default function Session() {
         </Animated.View>
       )}
 
+      {/* Before the call starts: skip straight to a lesson if the topic is new to them. */}
+      {offerTeachFirst && (
+        <Animated.View entering={riseIn()} style={[styles.offer, { bottom: Math.max(insets.bottom, 12) + 150 }]}>
+          <PillButton label="New to this? Teach me first" accessibilityLabel="Teach me first: a short lesson before you explain" onPress={teachFirst} style={{ alignSelf: "stretch" }} />
+        </Animated.View>
+      )}
+
       {/* One button at the bottom, with no panel: what it does sits just above it. */}
       <View pointerEvents="box-none" style={[styles.controls, { bottom: Math.max(insets.bottom, 12) + 8 }]}>
         {lastStats ? (
@@ -380,4 +398,9 @@ const styles = StyleSheet.create({
 /** 1234 ms as "1.2 s". */
 function secs(ms: number): string {
   return `${(ms / 1000).toFixed(1)} s`;
+}
+
+/** What a "Teach me first" lesson covers: the gap they came for, or the basics of the topic. */
+function firstIdea(topic: string, focus: string): string {
+  return focus || `The basics of ${topic}`;
 }

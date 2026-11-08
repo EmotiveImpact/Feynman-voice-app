@@ -94,12 +94,16 @@ export default function NewTopic() {
   const dimStyle = useAnimatedStyle(() => ({ opacity: dim.value }));
   const sheetStyle = useAnimatedStyle(() => ({ transform: [{ translateY: y.value }] }));
 
-  const start = (t: string) => {
+  // teach: go straight to a short lesson first, before explaining anything.
+  const start = (t: string, teach = false) => {
     const title = t.trim();
     if (!title) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     if (pages.length) saveNotes(title, joinPages(pages));
-    router.replace({ pathname: "/session", params: goal.trim() ? { topic: title, goal: goal.trim() } : { topic: title } });
+    const params: Record<string, string> = { topic: title };
+    if (goal.trim()) params.goal = goal.trim();
+    if (teach) params.teach = "1";
+    router.replace({ pathname: "/session", params });
   };
 
   return (
@@ -251,6 +255,13 @@ export default function NewTopic() {
                   onSubmitEditing={() => start(topic)}
                   style={[styles.input, { marginTop: 8, flex: 0 }]}
                   accessibilityLabel="What you want to be able to explain"
+                />
+                {/* New to it? Learn it first, then explain it back to Fenny. */}
+                <PillButton
+                  label="New to this? Teach me first"
+                  accessibilityLabel="Teach me first: a short lesson before you explain"
+                  onPress={() => start(topic, true)}
+                  style={{ marginTop: 10 }}
                 />
               </Animated.View>
             )}
