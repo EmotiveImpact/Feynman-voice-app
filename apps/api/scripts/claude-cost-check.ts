@@ -61,7 +61,7 @@ const main = async () => {
     const t0 = Date.now();
     const r = await buildLesson(env, L);
     const usd = r.cost.reduce((s, x) => s + x.usd, 0);
-    console.log(`  ${L.topic}: ${r.model}, ${(usd * GBP * 100).toFixed(2)}p, ${((Date.now() - t0) / 1000).toFixed(1)}s, ${r.lesson.steps?.length ?? "?"} steps`);
+    console.log(`  ${L.topic}: ${r.model}, ${(usd * GBP * 100).toFixed(2)}p, ${((Date.now() - t0) / 1000).toFixed(1)}s, ${r.lesson.bites.length} bites`);
   }
 
   console.log("GAP ANALYSIS (Haiku)");
