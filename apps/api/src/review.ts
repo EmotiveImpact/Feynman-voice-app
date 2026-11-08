@@ -12,7 +12,8 @@
 // endpoint serves the in-call offer ("Want a quick explanation, then tell me in
 // your own words?") after the learner is stuck twice.
 import { ProviderError } from "./openai";
-import { openAIPricesFromEnv, pricesFromEnv } from "./pricing";
+import { chatPricesFor, pricesFromEnv } from "./pricing";
+import { chatJSON, hasKeyFor, modelFor } from "./engine/chat";
 
 type Env = Record<string, string | undefined>;
 
@@ -90,7 +91,7 @@ function guard(req: Request, env: Env): Response | null {
   if (env.PROTOTYPE_TOKEN && req.headers.get("authorization") !== `Bearer ${env.PROTOTYPE_TOKEN}`) {
     return json(401, { error: "Missing or wrong prototype token" });
   }
-  if (!env.OPENAI_API_KEY) return json(500, { error: "OPENAI_API_KEY is not set on the server" });
+  if (!hasKeyFor(env, reviewModel(env))) return json(500, { error: "No AI key is set on the server" });
   return null;
 }
 
@@ -204,35 +205,31 @@ async function chatJson<T>(
   maxTokens: number,
   fetchImpl?: typeof fetch,
 ): Promise<{ data: T; pence: number }> {
-  const f = fetchImpl ?? fetch;
-  const model = env.OPENAI_REVIEW_MODEL ?? env.OPENAI_CHAT_MODEL ?? "gpt-5.4-mini";
-  const body: Record<string, unknown> = {
-    model,
-    messages: [
-      { role: "developer", content: system },
-      { role: "user", content: user },
-    ],
-    max_completion_tokens: maxTokens,
-    response_format: { type: "json_schema", json_schema: { name: schemaName, strict: true, schema } },
-  };
-  const effort = env.OPENAI_REVIEW_REASONING_EFFORT ?? "low";
-  if (effort) body.reasoning_effort = effort;
-  const res = await f("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: { authorization: `Bearer ${env.OPENAI_API_KEY}`, "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) throw new ProviderError("OpenAI chat", res.status, (await res.text()).slice(0, 500));
-  const out = (await res.json()) as {
-    choices?: { message?: { content?: string } }[];
-    usage?: { prompt_tokens?: number; completion_tokens?: number; prompt_tokens_details?: { cached_tokens?: number } };
-  };
-  const data = JSON.parse(out.choices?.[0]?.message?.content ?? "{}") as T;
-  const u = out.usage ?? {};
+  const model = reviewModel(env);
+  let r;
+  try {
+    r = await chatJSON<T>(
+      { apiKey: env.OPENAI_API_KEY ?? "", anthropicKey: env.ANTHROPIC_API_KEY, model, reasoningEffort: env.OPENAI_REVIEW_REASONING_EFFORT ?? "low", fetchImpl },
+      [
+        { role: "developer", content: system },
+        { role: "user", content: user },
+      ],
+      { name: schemaName, schema },
+      maxTokens,
+    );
+  } catch (e) {
+    throw new ProviderError("Chat", 502, e instanceof Error ? e.message.slice(0, 500) : String(e));
+  }
+  const u = r.usage;
   const cached = u.prompt_tokens_details?.cached_tokens ?? 0;
-  const p = openAIPricesFromEnv(env);
+  const p = chatPricesFor(model, env);
   const usd = (Math.max(0, (u.prompt_tokens ?? 0) - cached) * p.chatInPerM + cached * p.chatCachedInPerM + (u.completion_tokens ?? 0) * p.chatOutPerM) / 1e6;
-  return { data, pence: usd * pricesFromEnv(env).gbpPerUsd * 100 };
+  return { data: r.value, pence: usd * pricesFromEnv(env).gbpPerUsd * 100 };
+}
+
+/** Gap analysis and "Show me" run on Claude Haiku when its key is set. */
+function reviewModel(env: Env): string {
+  return modelFor(env, env.REVIEW_MODEL ?? env.OPENAI_REVIEW_MODEL);
 }
 
 async function readJson<T>(req: Request): Promise<T | null> {

@@ -6,7 +6,8 @@
 // A vision model reads the page because handwriting, equations and diagrams
 // are beyond small on-device text readers. Costs a fraction of a penny a page.
 import { ProviderError } from "./openai";
-import { openAIPricesFromEnv } from "./pricing";
+import { chatPricesFor } from "./pricing";
+import { chatJSON, hasKeyFor, modelFor } from "./engine/chat";
 
 type Env = Record<string, string | undefined>;
 
@@ -55,35 +56,27 @@ export async function readPage(
   imageBase64: string,
   topic?: string,
 ): Promise<ReadPageResult> {
-  const f = cfg.fetchImpl ?? fetch;
   const hint = topic?.trim() ? `\n\nThe student says the topic is: ${topic.trim().slice(0, 120)}` : "";
-  const res = await f("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: { authorization: `Bearer ${cfg.apiKey}`, "content-type": "application/json" },
-    body: JSON.stringify({
-      model: cfg.model,
-      reasoning_effort: "low",
-      max_completion_tokens: 4000,
-      messages: [
+  let r;
+  try {
+    r = await chatJSON<Partial<ReadPageResult>>(
+      { apiKey: cfg.apiKey, anthropicKey: cfg.env.ANTHROPIC_API_KEY, model: cfg.model, reasoningEffort: "low", fetchImpl: cfg.fetchImpl },
+      [
         { role: "developer", content: READ_PAGE_PROMPT + hint },
-        {
-          role: "user",
-          content: [{ type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}`, detail: "high" } }],
-        },
+        { role: "user", content: [{ type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}`, detail: "high" } }] },
       ],
-      response_format: { type: "json_schema", json_schema: { name: "page", strict: true, schema: SCHEMA } },
-    }),
-  });
-  if (!res.ok) throw new ProviderError("OpenAI vision", res.status, (await res.text()).slice(0, 500));
-  const body = (await res.json()) as {
-    choices?: { message?: { content?: string } }[];
-    usage?: { prompt_tokens?: number; completion_tokens?: number; prompt_tokens_details?: { cached_tokens?: number } };
-  };
-  const parsed = JSON.parse(body.choices?.[0]?.message?.content ?? "{}") as Partial<ReadPageResult>;
-  const prices = openAIPricesFromEnv(cfg.env);
-  const inTok = body.usage?.prompt_tokens ?? 0;
-  const outTok = body.usage?.completion_tokens ?? 0;
-  const usd = (inTok * prices.chatInPerM + outTok * prices.chatOutPerM) / 1e6;
+      { name: "page", schema: SCHEMA },
+      4000,
+    );
+  } catch (e) {
+    throw new ProviderError("Vision", 502, e instanceof Error ? e.message.slice(0, 500) : String(e));
+  }
+  const parsed = r.value;
+  const prices = chatPricesFor(cfg.model, cfg.env);
+  const cached = r.usage.prompt_tokens_details?.cached_tokens ?? 0;
+  const inTok = Math.max(0, (r.usage.prompt_tokens ?? 0) - cached);
+  const outTok = r.usage.completion_tokens ?? 0;
+  const usd = (inTok * prices.chatInPerM + cached * prices.chatCachedInPerM + outTok * prices.chatOutPerM) / 1e6;
   const gbp = Number(cfg.env.GBP_PER_USD) || 0.76;
   const readable = parsed.readable !== false && !!parsed.text?.trim();
   return {
@@ -106,10 +99,10 @@ export async function handleReadPage(req: Request, env: Env = process.env, fetch
   const image = (body.image ?? "").replace(/^data:image\/\w+;base64,/, "");
   if (!image) return json(400, { error: "image is required" });
   if (image.length > MAX_IMAGE_CHARS) return json(413, { error: "That photo is too big" });
-  if (!env.OPENAI_API_KEY) return json(500, { error: "OPENAI_API_KEY is not set on the server" });
+  const model = modelFor(env, env.READ_PAGE_MODEL);
+  if (!hasKeyFor(env, model)) return json(500, { error: "No AI key is set on the server" });
   try {
-    const model = env.READ_PAGE_MODEL ?? env.OPENAI_CHAT_MODEL ?? "gpt-5.4-mini";
-    return json(200, await readPage({ apiKey: env.OPENAI_API_KEY, model, env, fetchImpl }, image, body.topic));
+    return json(200, await readPage({ apiKey: env.OPENAI_API_KEY ?? "", model, env, fetchImpl }, image, body.topic));
   } catch (e) {
     console.error("read-page", e);
     return json(502, { error: "Could not read that page" });

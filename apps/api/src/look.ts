@@ -10,7 +10,8 @@
 // Server vision (gpt-5.4-mini) for now. Mirage has no React Native package
 // yet; when it does, the phone can react instantly and send its guess here
 // to be confirmed.
-import { openAIPricesFromEnv, type CostLine } from "./pricing";
+import { chatPricesFor, type CostLine } from "./pricing";
+import { chatJSON, hasKeyFor, modelFor } from "./engine/chat";
 
 type Env = Record<string, string | undefined>;
 
@@ -121,43 +122,35 @@ export async function lookAt(
   input: { image: string; subjects: string[]; guess?: string },
   fetchImpl?: typeof fetch,
 ): Promise<{ look: Look; model: string; cost: CostLine[] }> {
-  const f = fetchImpl ?? fetch;
-  const model = env.LOOK_MODEL ?? env.OPENAI_CHAT_MODEL ?? "gpt-5.4-mini";
-  const body: Record<string, unknown> = {
-    model,
-    max_completion_tokens: 1200,
-    reasoning_effort: env.LOOK_EFFORT ?? "low",
-    messages: [
-      { role: "developer", content: LOOK_SYSTEM },
-      {
-        role: "user",
-        content: [
-          { type: "text", text: userText(input.subjects, input.guess) },
-          // "low" detail is one small tile: plenty to name an object, and cheap.
-          { type: "image_url", image_url: { url: `data:image/jpeg;base64,${input.image}`, detail: env.LOOK_DETAIL ?? "low" } },
-        ],
-      },
-    ],
-    response_format: { type: "json_schema", json_schema: { name: "look", strict: true, schema: LOOK_SCHEMA } },
-  };
-  const res = await f("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: { authorization: `Bearer ${env.OPENAI_API_KEY}`, "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) throw new Error(`OpenAI ${res.status}: ${(await res.text()).slice(0, 300)}`);
-  const j = (await res.json()) as {
-    choices: { message: { content?: string; refusal?: string } }[];
-    usage?: { prompt_tokens?: number; completion_tokens?: number; prompt_tokens_details?: { cached_tokens?: number } };
-  };
-  const msg = j.choices?.[0]?.message;
-  if (!msg?.content) throw new Error(msg?.refusal ? "The model declined this photo" : "Empty answer");
-  const look = checkLook(JSON.parse(msg.content) as Partial<Look>, input.subjects);
-  const u = j.usage ?? {};
+  const model = modelFor(env, env.LOOK_MODEL);
+  let r;
+  try {
+    r = await chatJSON<Partial<Look>>(
+      { apiKey: env.OPENAI_API_KEY ?? "", anthropicKey: env.ANTHROPIC_API_KEY, model, reasoningEffort: env.LOOK_EFFORT ?? "low", fetchImpl },
+      [
+        { role: "developer", content: LOOK_SYSTEM },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: userText(input.subjects, input.guess) },
+            // "low" detail is one small tile on OpenAI: plenty to name an object, and cheap.
+            { type: "image_url", image_url: { url: `data:image/jpeg;base64,${input.image}`, detail: env.LOOK_DETAIL ?? "low" } },
+          ],
+        },
+      ],
+      { name: "look", schema: LOOK_SCHEMA },
+      1200,
+    );
+  } catch (e) {
+    if (e instanceof Error && /declined/.test(e.message)) throw new Error("The model declined this photo");
+    throw e;
+  }
+  const look = checkLook(r.value, input.subjects);
+  const u = r.usage;
   const cached = u.prompt_tokens_details?.cached_tokens ?? 0;
   const fresh = Math.max(0, (u.prompt_tokens ?? 0) - cached);
   const out = u.completion_tokens ?? 0;
-  const p = openAIPricesFromEnv(env);
+  const p = chatPricesFor(model, env);
   const usd = (fresh * p.chatInPerM + cached * p.chatCachedInPerM + out * p.chatOutPerM) / 1e6;
   return { look, model, cost: [{ label: `${model} look (${fresh} in, ${cached} cached, ${out} out)`, usd } as CostLine] };
 }
@@ -178,7 +171,7 @@ export async function handleLook(req: Request, env: Env = process.env, fetchImpl
   const image = (body.image ?? "").replace(/^data:image\/\w+;base64,/, "");
   if (!image) return json(400, { error: "image is required" });
   if (image.length > MAX_BASE64) return json(413, { error: "Photo is too big" });
-  if (!env.OPENAI_API_KEY) return json(500, { error: "OPENAI_API_KEY is not set on the server" });
+  if (!hasKeyFor(env, modelFor(env, env.LOOK_MODEL))) return json(500, { error: "No AI key is set on the server" });
   const subjects = Array.isArray(body.subjects) ? body.subjects.filter((s): s is string => typeof s === "string") : [];
   const t0 = Date.now();
   try {
