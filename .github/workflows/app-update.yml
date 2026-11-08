@@ -58,6 +58,11 @@ jobs:
         working-directory: .
         run: npm ci
 
+      # The Kitten voice model isn't in git (too big); the app bundle needs it,
+      # just as the TestFlight build fetches it after install.
+      - name: Fetch the Kitten voice model
+        run: npm run fetch-model
+
       - name: Publish the update to the production channel
         env:
           # Typed in by hand, or the first line of the merged change when it runs by itself.
