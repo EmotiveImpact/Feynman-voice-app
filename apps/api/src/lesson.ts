@@ -15,7 +15,7 @@
 import { createHash } from "node:crypto";
 import Anthropic from "@anthropic-ai/sdk";
 import { chatJSON } from "./engine/chat";
-import { openAIPricesFromEnv, type CostLine } from "./pricing";
+import { CLAUDE_PRICES, openAIPricesFromEnv, type CostLine } from "./pricing";
 import { checkFilm, checkGuess, FILM_PROMPT, FILM_SCHEMA, GUESS_SCHEMA, type FilmBeat, type Guess } from "./film";
 import { checkPlay, checkScene, FAMILIES, PLAY_SCHEMA, SCENE_PROMPT, SCENE_SCHEMA, type Play, type Scene } from "./scene";
 
@@ -285,9 +285,10 @@ export interface LessonResult {
 }
 
 /** Sonnet 5.5 prices per million tokens, checked 2026-11-06: $2 in, $0.20 cached in, $10 out. */
-function claudePrices(env: Env) {
+function claudePrices(env: Env, model: string) {
   const n = (v: string | undefined, d: number) => (v && !Number.isNaN(Number(v)) ? Number(v) : d);
-  return { in: n(env.CLAUDE_PRICE_IN, 2), cachedIn: n(env.CLAUDE_PRICE_CACHED_IN, 0.2), out: n(env.CLAUDE_PRICE_OUT, 10) };
+  const base = CLAUDE_PRICES[model] ?? CLAUDE_PRICES["claude-sonnet-5-5"];
+  return { in: n(env.CLAUDE_PRICE_IN, base.in), cachedIn: n(env.CLAUDE_PRICE_CACHED_IN, base.cachedIn), out: n(env.CLAUDE_PRICE_OUT, base.out) };
 }
 
 async function draftClaude(env: Env, req: LessonRequest, retry?: string, fetchImpl?: typeof fetch): Promise<{ draft: Draft; model: string; cost: CostLine }> {
@@ -295,18 +296,18 @@ async function draftClaude(env: Env, req: LessonRequest, retry?: string, fetchIm
   const model = env.LESSON_MODEL ?? "claude-sonnet-5-5";
   const r = await client.beta.messages.create({
     model,
-    max_tokens: 7000,
+    max_tokens: Number(env.LESSON_MAX_TOKENS) || 7000,
     betas: ["server-side-fallback-2026-07-01"],
     fallbacks: "default",
     // The instructions are the same for every lesson, so they are cached.
     system: [{ type: "text", text: CLAUDE_SYSTEM, cache_control: { type: "ephemeral" } }],
-    output_config: { effort: (env.LESSON_EFFORT ?? "medium") as "low" | "medium" | "high", format: { type: "json_schema", schema: CLAUDE_LESSON_SCHEMA } },
+    output_config: { effort: (env.LESSON_EFFORT ?? "low") as "low" | "medium" | "high", format: { type: "json_schema", schema: CLAUDE_LESSON_SCHEMA } },
     messages: [{ role: "user", content: userMessage(req, retry) }],
   });
   if (r.stop_reason === "refusal") throw new Error("Claude declined to write this lesson");
   if (r.stop_reason === "max_tokens") throw new Error("Lesson ran out of room");
   const text = r.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");
-  const p = claudePrices(env);
+  const p = claudePrices(env, model);
   const u = r.usage;
   const fresh = (u.input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) * 1.25;
   const cached = u.cache_read_input_tokens ?? 0;

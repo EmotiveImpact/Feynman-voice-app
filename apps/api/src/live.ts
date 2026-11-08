@@ -22,6 +22,7 @@ import { toSpeechChunks } from "./speech";
 import { engineTurn, pickFresh, seedOf } from "./engine/engine";
 import { keyIdeas } from "./engine/ideas";
 import { unfinished } from "./engine/policy";
+import { hasKeyFor, modelFor } from "./engine/chat";
 
 const MAX_AUDIO_BYTES = 3 * 1024 * 1024;
 const ALLOWED_MIME = new Set(["audio/wav", "audio/x-wav", "audio/aac", "audio/mp4", "audio/mpeg", "audio/ogg", "audio/flac", "audio/webm"]);
@@ -80,8 +81,8 @@ export async function handleLiveTurn(req: Request, env: Env = process.env, fetch
   }
   const brain = (env.BRAIN ?? "openai").toLowerCase();
   if (brain !== "openai" && brain !== "gemini") return json(500, { error: `Unknown BRAIN ${brain}` });
-  if (brain === "openai" && !env.OPENAI_API_KEY) return json(500, { error: "OPENAI_API_KEY is not set on the server" });
-  if (env.FENNY_MODEL?.startsWith("claude-") && !env.ANTHROPIC_API_KEY) return json(500, { error: "FENNY_MODEL is a Claude model but ANTHROPIC_API_KEY is not set on the server" });
+  const fennyModelChoice = modelFor(env, env.FENNY_MODEL);
+  if (brain === "openai" && !hasKeyFor(env, fennyModelChoice)) return json(500, { error: `No key on the server for ${fennyModelChoice}` });
   if (brain === "gemini" && !env.GEMINI_API_KEY) return json(500, { error: "GEMINI_API_KEY is not set on the server" });
   let body: LiveTurnRequest;
   try {
@@ -116,10 +117,10 @@ export async function handleLiveTurn(req: Request, env: Env = process.env, fetch
       const lines: CostLine[] = [];
       const p = openAIPricesFromEnv(env);
       const credit = Number(env.CARTESIA_USD_PER_CREDIT) || 0.00003;
-      const chatModel = env.OPENAI_CHAT_MODEL ?? "gpt-5.4-mini";
       const useEngine = brain === "openai" && (env.FENNY_ENGINE ?? "on") !== "off";
       // Fenny's engine can run on another model, e.g. FENNY_MODEL=claude-haiku-5-5.
-      const fennyModel = env.FENNY_MODEL ?? chatModel;
+      // With a Claude key on the server it defaults to Claude Haiku.
+      const fennyModel = fennyModelChoice;
       const fp = chatPricesFor(fennyModel, env);
       const chatCfg = { apiKey: env.OPENAI_API_KEY!, anthropicKey: env.ANTHROPIC_API_KEY, model: fennyModel, reasoningEffort: env.OPENAI_REASONING_EFFORT ?? "none", fetchImpl: f };
       // The topic's key ideas, built while we listen (cached after the first turn).

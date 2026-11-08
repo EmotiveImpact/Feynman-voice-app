@@ -11,6 +11,28 @@ export interface ChatCfg {
   fetchImpl?: typeof fetch;
 }
 
+/** A message part in OpenAI's shape: text, or an image as a data URL. */
+export type ChatPart = { type: "text"; text: string } | { type: "image_url"; image_url: { url: string; detail?: string } };
+export type ChatMessage = { role: string; content: string | ChatPart[] };
+
+type Env = Record<string, string | undefined>;
+
+/** Claude is the brain whenever its key is on the server, unless AI_PROVIDER=openai. */
+export function useClaude(env: Env): boolean {
+  return !!env.ANTHROPIC_API_KEY && (env.AI_PROVIDER ?? "claude").toLowerCase() !== "openai";
+}
+
+/** The model for a job: its own setting if given, else Claude's pick, else OpenAI's chat model. */
+export function modelFor(env: Env, specific: string | undefined, claudeDefault = "claude-haiku-5-5"): string {
+  if (specific) return specific;
+  return useClaude(env) ? claudeDefault : env.OPENAI_CHAT_MODEL ?? "gpt-5.4-mini";
+}
+
+/** True when the server has a key for this model's provider. */
+export function hasKeyFor(env: Env, model: string): boolean {
+  return model.startsWith("claude-") ? !!env.ANTHROPIC_API_KEY : !!env.OPENAI_API_KEY;
+}
+
 export interface ChatUsage {
   prompt_tokens?: number;
   completion_tokens?: number;
@@ -19,7 +41,7 @@ export interface ChatUsage {
 
 export async function chatJSON<T>(
   cfg: ChatCfg,
-  messages: { role: string; content: string }[],
+  messages: ChatMessage[],
   schema: { name: string; schema: object },
   maxTokens = 600,
 ): Promise<{ value: T; usage: ChatUsage }> {
@@ -47,7 +69,7 @@ const clients = new Map<string, Anthropic>();
 /** The same call on Claude: structured output, low effort for speed, usage in OpenAI's shape. */
 async function claudeJSON<T>(
   cfg: ChatCfg,
-  messages: { role: string; content: string }[],
+  messages: ChatMessage[],
   schema: { name: string; schema: object },
   maxTokens: number,
 ): Promise<{ value: T; usage: ChatUsage }> {
@@ -58,17 +80,21 @@ async function claudeJSON<T>(
     client = new Anthropic({ apiKey: cfg.anthropicKey, maxRetries: 1, ...(cfg.fetchImpl ? { fetch: cfg.fetchImpl } : {}) });
     clients.set(id, client);
   }
-  const system = messages.filter((m) => m.role === "developer" || m.role === "system").map((m) => m.content).join("\n\n");
+  const system = messages
+    .filter((m) => m.role === "developer" || m.role === "system")
+    .map((m) => (typeof m.content === "string" ? m.content : m.content.map((p) => (p.type === "text" ? p.text : "")).join("")))
+    .join("\n\n");
   // Claude wants turns to alternate and to end on the user, so neighbours with the same role are joined.
-  const turns: { role: "user" | "assistant"; content: string }[] = [];
+  const turns: { role: "user" | "assistant"; content: ClaudeBlock[] }[] = [];
   for (const m of messages) {
     if (m.role === "developer" || m.role === "system") continue;
     const role = m.role === "assistant" ? "assistant" : "user";
+    const blocks = toClaudeBlocks(m.content);
     const last = turns[turns.length - 1];
-    if (last?.role === role) last.content += "\n\n" + m.content;
-    else turns.push({ role, content: m.content });
+    if (last?.role === role) last.content.push(...blocks);
+    else turns.push({ role, content: blocks });
   }
-  if (!turns.length || turns[turns.length - 1].role !== "user") turns.push({ role: "user", content: "(go on)" });
+  if (!turns.length || turns[turns.length - 1].role !== "user") turns.push({ role: "user", content: [{ type: "text", text: "(go on)" }] });
   const effort = cfg.reasoningEffort === "high" || cfg.reasoningEffort === "medium" ? cfg.reasoningEffort : "low";
   const fallback = !cfg.model.startsWith("claude-haiku");
   const r = await client.beta.messages.create({
@@ -92,4 +118,18 @@ async function claudeJSON<T>(
       prompt_tokens_details: { cached_tokens: cached },
     },
   };
+}
+
+type ClaudeBlock =
+  | { type: "text"; text: string }
+  | { type: "image"; source: { type: "base64"; media_type: "image/jpeg" | "image/png" | "image/webp" | "image/gif"; data: string } };
+
+function toClaudeBlocks(content: string | ChatPart[]): ClaudeBlock[] {
+  if (typeof content === "string") return [{ type: "text", text: content }];
+  return content.map((p): ClaudeBlock => {
+    if (p.type === "text") return { type: "text", text: p.text };
+    const m = /^data:(image\/(?:jpeg|png|webp|gif));base64,(.*)$/s.exec(p.image_url.url);
+    if (!m) throw new Error("Images must be base64 data URLs");
+    return { type: "image", source: { type: "base64", media_type: m[1] as "image/jpeg", data: m[2] } };
+  });
 }
