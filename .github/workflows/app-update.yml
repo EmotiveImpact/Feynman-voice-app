@@ -7,11 +7,22 @@
 # "iOS to TestFlight" instead: phones on an older build ignore updates that
 # don't match their native code, so nothing breaks either way.
 #
-# Run it from the Actions tab: "Update the app" > Run workflow. Close and
-# reopen the app twice: it downloads on the first open and uses it on the next.
+# Runs by itself whenever app code lands on main, so every merged change
+# reaches phones with nobody pressing anything (Edem asked for this,
+# 2026-11-08). It can still be run by hand from the Actions tab:
+# "Update the app" > Run workflow. Close and reopen the app twice: it
+# downloads on the first open and uses it on the next. runtimeVersion uses
+# the fingerprint policy, so a native change never reaches an older build.
 name: Update the app
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/mobile/**"
+      - "packages/**"
+      - "package-lock.json"
+      - ".github/workflows/app-update.yml"
   workflow_dispatch:
     inputs:
       message:
@@ -48,4 +59,7 @@ jobs:
         run: npm ci
 
       - name: Publish the update to the production channel
-        run: npx --yes eas-cli@latest update --channel production --environment production --platform ios --message "${{ inputs.message }}" --non-interactive
+        env:
+          # Typed in by hand, or the first line of the merged change when it runs by itself.
+          MESSAGE: ${{ inputs.message || github.event.head_commit.message || 'Update' }}
+        run: npx --yes eas-cli@latest update --channel production --environment production --platform ios --message "$(printf '%s' "$MESSAGE" | head -n 1)" --non-interactive
