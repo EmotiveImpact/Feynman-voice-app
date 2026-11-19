@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chatJSON, modelFor, useClaude } from "../src/engine/chat";
+import { chatJSON, forgetClaudeTrouble, modelFor, useClaude } from "../src/engine/chat";
 import { chatPricesFor } from "../src/pricing";
 
 describe("chatJSON on Claude", () => {
@@ -64,5 +64,34 @@ describe("chatJSON on Claude", () => {
     expect(modelFor({ ANTHROPIC_API_KEY: "a" }, undefined)).toBe("claude-haiku-5-5");
     expect(modelFor({}, undefined)).toBe("gpt-5.4-mini");
     expect(modelFor({ ANTHROPIC_API_KEY: "a" }, "gpt-5.4-mini")).toBe("gpt-5.4-mini");
+  });
+
+  it("answers on OpenAI when Claude refuses the key, and stops asking Claude for a while", async () => {
+    forgetClaudeTrouble();
+    const calls: string[] = [];
+    const f = (async (url: string) => {
+      calls.push(String(url).includes("anthropic") ? "claude" : "openai");
+      if (String(url).includes("anthropic")) {
+        return new Response(JSON.stringify({ type: "error", error: { type: "authentication_error", message: "invalid x-api-key" } }), {
+          status: 401,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({ choices: [{ message: { content: '{"say":"Why?"}' } }], usage: { prompt_tokens: 5 } }), { headers: { "content-type": "application/json" } });
+    }) as unknown as typeof fetch;
+    const cfg = { apiKey: "o", anthropicKey: "refused", model: "claude-haiku-5-5", fetchImpl: f };
+    const ask = () => chatJSON<{ say: string }>(cfg, [{ role: "user", content: "hi" }], { name: "x", schema: { type: "object" } });
+    expect((await ask()).value.say).toBe("Why?");
+    expect((await ask()).value.say).toBe("Why?");
+    expect(calls.filter((c) => c === "claude").length).toBeLessThanOrEqual(2);
+    expect(calls[calls.length - 1]).toBe("openai");
+    expect(calls.slice(-2)).toEqual(["openai", "openai"]);
+    forgetClaudeTrouble();
+  });
+
+  it("still fails when Claude fails and there is no OpenAI key", async () => {
+    forgetClaudeTrouble();
+    const f = (async () => new Response(JSON.stringify({ type: "error", error: { type: "authentication_error", message: "invalid x-api-key" } }), { status: 401, headers: { "content-type": "application/json" } })) as unknown as typeof fetch;
+    await expect(chatJSON({ apiKey: "", anthropicKey: "refused2", model: "claude-haiku-5-5", fetchImpl: f }, [{ role: "user", content: "hi" }], { name: "x", schema: { type: "object" } })).rejects.toThrow();
   });
 });

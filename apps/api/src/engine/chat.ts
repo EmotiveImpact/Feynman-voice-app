@@ -9,6 +9,8 @@ export interface ChatCfg {
   model: string;
   reasoningEffort?: string;
   fetchImpl?: typeof fetch;
+  /** The OpenAI model used when Claude can't answer (defaults to gpt-5.4-mini). */
+  fallbackModel?: string;
 }
 
 /** A message part in OpenAI's shape: text, or an image as a data URL. */
@@ -45,7 +47,24 @@ export async function chatJSON<T>(
   schema: { name: string; schema: object },
   maxTokens = 600,
 ): Promise<{ value: T; usage: ChatUsage }> {
-  if (cfg.model.startsWith("claude-")) return claudeJSON<T>(cfg, messages, schema, maxTokens);
+  if (cfg.model.startsWith("claude-")) {
+    // If Claude's key is refused, out of credit or Claude is down, the learner
+    // still gets an answer: the same call goes to OpenAI when its key is here.
+    // Trouble is remembered for a few minutes so each turn doesn't wait on a
+    // call that will fail.
+    const spare = !!cfg.apiKey;
+    const id = cfg.anthropicKey ?? "";
+    if (!spare || Date.now() >= (claudeTrouble.get(id) ?? 0)) {
+      try {
+        return await claudeJSON<T>(cfg, messages, schema, maxTokens);
+      } catch (e) {
+        if (!spare || !(e instanceof Anthropic.APIError || /ANTHROPIC_API_KEY/.test((e as Error).message))) throw e;
+        claudeTrouble.set(id, Date.now() + CLAUDE_REST_MS);
+        console.error(`chat: ${cfg.model} failed, using OpenAI`, (e as Error).message.slice(0, 200));
+      }
+    }
+    cfg = { ...cfg, model: cfg.fallbackModel ?? "gpt-5.4-mini" };
+  }
   const f = cfg.fetchImpl ?? fetch;
   const body: Record<string, unknown> = {
     model: cfg.model,
@@ -65,6 +84,13 @@ export async function chatJSON<T>(
 }
 
 const clients = new Map<string, Anthropic>();
+/** Per Claude key: when to try Claude again after it failed. */
+const claudeTrouble = new Map<string, number>();
+const CLAUDE_REST_MS = 5 * 60_000;
+/** For tests: forget that Claude failed. */
+export function forgetClaudeTrouble(): void {
+  claudeTrouble.clear();
+}
 
 /** The same call on Claude: structured output, low effort for speed, usage in OpenAI's shape. */
 async function claudeJSON<T>(
