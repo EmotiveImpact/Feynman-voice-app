@@ -53,10 +53,10 @@ export function T({
   );
 }
 
-/** Mono label in capitals, for small meta lines. */
+/** A quiet section heading: small, medium weight, written as a sentence. */
 export function Label({ children, tone = "muted", style }: { children: ReactNode; tone?: Tone; style?: StyleProp<TextStyle> }) {
   return (
-    <T size={12} weight="mono" tone={tone} style={[{ letterSpacing: 1.6, textTransform: "uppercase" }, style]}>
+    <T size={13.5} weight="medium" tone={tone} style={style}>
       {children}
     </T>
   );
@@ -131,7 +131,7 @@ export function RoundButton({ onPress, label, children, size = 48, on }: { onPre
 export function Stat({ value, label, tone = "text" }: { value: string; label: string; tone?: Tone }) {
   return (
     <View style={{ alignItems: "center", gap: 2 }}>
-      <T size={28} weight="mono" tone={tone} style={{ letterSpacing: 0, lineHeight: 32 }}>
+      <T size={28} weight="medium" tone={tone} style={{ lineHeight: 32 }}>
         {value}
       </T>
       <T size={12.5} tone="muted">
@@ -141,7 +141,7 @@ export function Stat({ value, label, tone = "text" }: { value: string; label: st
   );
 }
 
-type IconName = "mic" | "close" | "check" | "pause" | "person" | "wave" | "camera";
+type IconName = "mic" | "close" | "check" | "pause" | "person" | "wave" | "camera" | "arrow" | "plus" | "chevron";
 export function Icon({ name, size = 20, color = colour.text }: { name: IconName; size?: number; color?: string }) {
   const p = { stroke: color, strokeWidth: 1.6, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, fill: "none" };
   return (
@@ -152,6 +152,9 @@ export function Icon({ name, size = 20, color = colour.text }: { name: IconName;
           <Path d="M5 11a7 7 0 0 0 14 0M12 18v3" {...p} />
         </>
       )}
+      {name === "arrow" && <Path d="M5 12h14M13 6l6 6-6 6" {...p} />}
+      {name === "plus" && <Path d="M12 5v14M5 12h14" {...p} />}
+      {name === "chevron" && <Path d="M9 6l6 6-6 6" {...p} />}
       {name === "close" && <Path d="M6 6l12 12M18 6L6 18" {...p} />}
       {name === "check" && <Path d="M5 12.5l4.5 4.5L19 7.5" {...p} />}
       {name === "pause" && <Path d="M9 6v12M15 6v12" {...p} />}

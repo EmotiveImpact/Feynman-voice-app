@@ -280,8 +280,8 @@ export default function Session() {
         <View style={styles.topRow}>
           <View style={styles.side} />
           <View style={styles.title}>
-            <T size={11} weight="mono" tone="muted" style={{ letterSpacing: 1.5 }}>
-              TEACHING · {clock(spoken)}
+            <T size={12.5} tone="muted" style={{ fontVariant: ["tabular-nums"] }}>
+              Teaching · {clock(spoken)}
             </T>
             <T size={15} weight="semibold" lines={1} style={{ textAlign: "center" }}>
               {topic}

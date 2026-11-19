@@ -1,6 +1,7 @@
 // Home: Today, Topics and Me, from the canvas board "THE APP: start here".
 // First run goes to the intro.
 import { useEffect, useState } from "react";
+import { useSharedValue } from "react-native-reanimated";
 import { useWindowDimensions, View } from "react-native";
 import { Redirect, router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -18,7 +19,13 @@ export default function Home() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const profile = useProfile();
-  const [tab, setTab] = useState<HomeTab>("today");
+  const [tab, setTabState] = useState<HomeTab>("today");
+  // How far the page has scrolled, so the top bar can fade in over it.
+  const scrollY = useSharedValue(0);
+  const setTab = (t: HomeTab) => {
+    scrollY.value = 0;
+    setTabState(t);
+  };
   // A call whose results never came back (the app closed mid-check): finish it.
   useEffect(() => {
     if (profile.introDone && getFinishedCall()) router.push("/results");
@@ -32,7 +39,7 @@ export default function Home() {
   // A saved gap opens a call on that gap, with Fenny asking them to tell it in their own words.
   const onGap = (topic: string, gap: SavedGap) =>
     router.push({ pathname: "/session", params: { topic, prompt: TELL_ME, focus: gap.title, focusId: gap.id } });
-  const common = { profile, top: insets.top, bottom: insets.bottom };
+  const common = { profile, top: insets.top, bottom: insets.bottom, scrollY };
 
   return (
     <View style={homeStyles.root}>
@@ -49,7 +56,7 @@ export default function Home() {
           />
         )}
       </ScreenIn>
-      <TopBar top={insets.top} tab={tab} minutes={minutesLeft(profile)} initial={(profile.name[0] ?? "?").toUpperCase()} onMe={() => setTab("me")} />
+      <TopBar top={insets.top} tab={tab} minutes={minutesLeft(profile)} scrollY={scrollY} onMe={() => setTab("me")} />
       <Nav bottom={insets.bottom} tab={tab} onChange={setTab} onStart={onNew} width={width} />
     </View>
   );

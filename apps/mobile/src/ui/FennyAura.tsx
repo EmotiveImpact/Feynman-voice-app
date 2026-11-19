@@ -16,10 +16,10 @@ export type AuraScene = "today" | "topics" | "me" | "session" | "intro" | "topic
 type Light = { x: number; y: number; w: number; h: number; o: number };
 const SCENES: Record<AuraScene, Light> = {
   // Like aurora.webp: a soft silver-blue wash across the top.
-  today: { x: 0.42, y: 0.1, w: 1.15, h: 0.2, o: 0.95 },
-  topics: { x: 0.8, y: 0.08, w: 0.95, h: 0.18, o: 0.85 },
-  me: { x: 0.18, y: 0.1, w: 0.95, h: 0.17, o: 0.8 },
-  topic: { x: 0.5, y: 0.06, w: 1.0, h: 0.17, o: 0.7 },
+  today: { x: 0.4, y: 0.015, w: 1.1, h: 0.21, o: 0.72 },
+  topics: { x: 0.84, y: 0.01, w: 0.9, h: 0.19, o: 0.64 },
+  me: { x: 0.14, y: 0.01, w: 0.9, h: 0.18, o: 0.58 },
+  topic: { x: 0.5, y: 0.0, w: 1.0, h: 0.17, o: 0.5 },
   // A soft wash rising from the bottom edge only, under the button.
   session: { x: 0.5, y: 1.0, w: 1.7, h: 0.32, o: 0.7 },
   intro: { x: 0.5, y: 0.07, w: 1.2, h: 0.24, o: 0.7 },
@@ -101,8 +101,8 @@ export function FennyAura({ scene = "today" }: { scene?: AuraScene }) {
     <Canvas style={StyleSheet.absoluteFill} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
       <Rect x={0} y={0} width={W} height={H} color="#07080A" />
       <Group opacity={op}>
-        <Blur blur={55} />
-        <Oval x={ox} y={oy} width={ow} height={oh} color="#9FB0CF" />
+        <Blur blur={64} />
+        <Oval x={ox} y={oy} width={ow} height={oh} color="#8FA5D2" />
       </Group>
       {/* Long soft streaks through the light, like the blurred photo of a dusk
           sky the canvas used (cooled to silver-blue). Each drifts on its own. */}

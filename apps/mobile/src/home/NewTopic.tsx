@@ -1,8 +1,7 @@
-// New topic, from the canvas board "Part: upload flow". A sheet over Today.
-// Scan pages works: the phone's own scanner snaps the pages and the server
-// reads them (handwriting too). The other sources are still marked "Soon".
-// Without notes you type (or dictate) the topic and your student asks about
-// the basics.
+// New topic: a sheet over Today. The quickest way in comes first: name a
+// topic and start. Notes are the second way: Scan pages uses the phone's own
+// scanner and the server reads them (handwriting too). The sources that do
+// not work yet are one quiet line, not a wall of greyed-out buttons.
 import { Press } from "../ui/Press";
 import { useEffect, useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, TextInput, View } from "react-native";
@@ -20,13 +19,6 @@ import { readPage } from "../api";
 import { joinPages, saveNotes } from "../data/notes";
 import { inBatches, pageForUpload, scanPages } from "./scan";
 
-const SOURCES = [
-  ["Slides or PDF", "PowerPoint, Keynote, PDF, Word"],
-  ["Scan pages", "Textbook, handouts, notes"],
-  ["From the cloud", "Google Drive, OneDrive"],
-  ["Paste text", "Copied notes or a link"],
-];
-const SCAN = "Scan pages";
 
 /** Pages being read, read, or a problem reading them. */
 type ScanState =
@@ -116,11 +108,11 @@ export default function NewTopic() {
           <View style={styles.grabber} />
           <Rise d={1}>
             <View style={{ marginTop: 18, flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
-              <T size={30} weight="medium" style={{ lineHeight: 32 }}>
-                <T size={30} weight="medium" tone="dim">
-                  Give me your notes.
+              <T size={28} weight="medium" style={{ lineHeight: 33 }}>
+                <T size={28} weight="medium" tone="dim">
+                  Name a topic.
                 </T>
-                {"\n"}I'll learn from you.
+                {"\n"}I'll ask the questions.
               </T>
               <View style={{ width: 44, height: 44 }}>
                 <LivingLight size={44} mood="listen" touchable />
@@ -129,36 +121,83 @@ export default function NewTopic() {
           </Rise>
 
           <Rise d={2}>
-            <View style={styles.grid}>
-              {SOURCES.map(([title, sub]) =>
-                title === SCAN ? (
-                  <Press key={title} onPress={scanNotes} style={{ width: "48.5%" }} accessibilityRole="button" accessibilityLabel="Scan pages of your notes">
-                    <Glass style={[styles.source, styles.live]}>
-                      <T size={15} weight="semibold">
-                        {title}
-                      </T>
-                      <T size={12} tone="soft">
-                        {sub}
-                      </T>
-                    </Glass>
-                  </Press>
-                ) : (
-                  <Glass key={title} style={styles.source}>
-                    <View style={styles.soon}>
-                      <Label tone="muted" style={{ fontSize: 10 }}>
-                        Soon
-                      </Label>
-                    </View>
-                    <T size={15} weight="semibold" tone="soft">
-                      {title}
-                    </T>
-                    <T size={12} tone="dim">
-                      {sub}
-                    </T>
-                  </Glass>
-                ),
-              )}
+            <View style={styles.inputRow}>
+              <TextInput
+                value={topic}
+                onChangeText={setTopic}
+                placeholder={pages.length ? "What is this topic called?" : "Enzyme kinetics, say"}
+                placeholderTextColor={colour.textDim}
+                returnKeyType="go"
+                onSubmitEditing={() => start(topic)}
+                style={styles.input}
+                accessibilityLabel="Topic"
+              />
+              <Press onPress={() => start(topic)} disabled={!topic.trim()} accessibilityRole="button" accessibilityLabel="Start explaining" style={{ opacity: topic.trim() ? 1 : 0.4 }}>
+                <Soft lit={!!topic.trim()} style={{ width: 54, height: 54 }}>
+                  <Icon name="mic" color={topic.trim() ? colour.onLight : colour.text} />
+                </Soft>
+              </Press>
             </View>
+            {topic.trim().length > 0 && (
+              <Animated.View entering={FadeIn}>
+                <TextInput
+                  value={goal}
+                  onChangeText={setGoal}
+                  placeholder="By the exam I want to explain… (optional)"
+                  placeholderTextColor={colour.textDim}
+                  returnKeyType="go"
+                  onSubmitEditing={() => start(topic)}
+                  style={[styles.input, { marginTop: 8, flex: 0 }]}
+                  accessibilityLabel="What you want to be able to explain"
+                />
+                {/* New to it? Learn it first, then explain it back to Fenny. */}
+                <PillButton
+                  label="New to this? Teach me first"
+                  accessibilityLabel="Teach me first: a short lesson before you explain"
+                  onPress={() => start(topic, true)}
+                  style={{ marginTop: 10 }}
+                />
+              </Animated.View>
+            )}
+          </Rise>
+
+          {recent.length > 0 && (
+            <Rise d={3}>
+              <Label style={{ marginTop: 20, marginLeft: 4 }}>Recent</Label>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+                {recent.map((t) => (
+                  <Press key={t.title} onPress={() => start(t.title)} accessibilityRole="button">
+                    <View style={styles.chip}>
+                      <T size={14} tone="soft">
+                        {t.title}
+                      </T>
+                    </View>
+                  </Press>
+                ))}
+              </View>
+            </Rise>
+          )}
+
+          <Rise d={4}>
+            <Label style={{ marginTop: 22, marginLeft: 4 }}>{pages.length ? "Your notes" : "Or give Fenny your notes"}</Label>
+            {!scan && (
+              <Press onPress={scanNotes} accessibilityRole="button" accessibilityLabel="Scan pages of your notes">
+                <View style={styles.scanRow}>
+                  <View style={styles.scanIcon}>
+                    <Icon name="camera" size={20} color="#C9CDD4" />
+                  </View>
+                  <View style={{ flex: 1, gap: 1 }}>
+                    <T size={15.5} weight="medium">
+                      Scan pages
+                    </T>
+                    <T size={13} tone="muted">
+                      Textbook, handouts, handwriting
+                    </T>
+                  </View>
+                  <Icon name="chevron" size={18} color={colour.muted} />
+                </View>
+              </Press>
+            )}
           </Rise>
 
           {scan && (
@@ -220,68 +259,12 @@ export default function NewTopic() {
             </Animated.View>
           )}
 
-          <Rise d={3}>
-            <T size={15} style={{ marginTop: 18 }}>
-              {pages.length ? "What's this topic called?" : "No notes? Just say the topic"}
-            </T>
-            <T size={12.5} tone="soft" style={{ marginTop: 2 }}>
-              {pages.length ? "Your student will learn from your pages." : "Your student will ask about the basics."}
-            </T>
-            <View style={styles.inputRow}>
-              <TextInput
-                value={topic}
-                onChangeText={setTopic}
-                placeholder="Enzyme kinetics, the French Revolution…"
-                placeholderTextColor={colour.textDim}
-                returnKeyType="go"
-                onSubmitEditing={() => start(topic)}
-                style={styles.input}
-                accessibilityLabel="Topic"
-              />
-              <Press onPress={() => start(topic)} disabled={!topic.trim()} accessibilityRole="button" accessibilityLabel="Start explaining" style={{ opacity: topic.trim() ? 1 : 0.4 }}>
-                <Soft style={{ width: 50, height: 50 }}>
-                  <Icon name="mic" />
-                </Soft>
-              </Press>
-            </View>
-            {topic.trim().length > 0 && (
-              <Animated.View entering={FadeIn}>
-                <TextInput
-                  value={goal}
-                  onChangeText={setGoal}
-                  placeholder="By the exam I want to explain… (optional)"
-                  placeholderTextColor={colour.textDim}
-                  returnKeyType="go"
-                  onSubmitEditing={() => start(topic)}
-                  style={[styles.input, { marginTop: 8, flex: 0 }]}
-                  accessibilityLabel="What you want to be able to explain"
-                />
-                {/* New to it? Learn it first, then explain it back to Fenny. */}
-                <PillButton
-                  label="New to this? Teach me first"
-                  accessibilityLabel="Teach me first: a short lesson before you explain"
-                  onPress={() => start(topic, true)}
-                  style={{ marginTop: 10 }}
-                />
-              </Animated.View>
-            )}
-          </Rise>
-
-          {recent.length > 0 && (
-            <Rise d={4}>
-              <Label style={{ marginTop: 18 }}>Recent</Label>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
-                {recent.map((t) => (
-                  <Press key={t.title} onPress={() => start(t.title)} accessibilityRole="button">
-                    <Glass style={{ height: 40, borderRadius: 999, paddingHorizontal: 15, justifyContent: "center" }}>
-                      <T size={14} tone="soft">
-                        {t.title}
-                      </T>
-                    </Glass>
-                  </Press>
-                ))}
-              </View>
-            </Rise>
+          {!scan && (
+            <Animated.View entering={FadeIn.delay(450)}>
+              <T size={13} tone="dim" style={{ marginTop: 10, marginLeft: 4 }}>
+                Slides, PDFs and pasted text are coming soon.
+              </T>
+            </Animated.View>
           )}
 
           <Animated.View entering={FadeIn.delay(450)}>
@@ -311,17 +294,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingBottom: 12,
     borderRadius: 40,
-    backgroundColor: "rgba(18,19,22,0.96)",
-    borderWidth: 1,
-    borderColor: colour.hairline,
+    backgroundColor: "#131417",
   },
   grabber: { alignSelf: "center", width: 38, height: 5, borderRadius: 3, backgroundColor: "rgba(255,255,255,0.22)" },
-  grid: { marginTop: 20, flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  source: { width: "48.5%", borderRadius: 22, padding: 14, gap: 2, opacity: 0.55 },
-  soon: { position: "absolute", right: 10, top: 10 },
-  live: { width: "100%", opacity: 1, borderWidth: 1, borderColor: "rgba(214,224,240,0.22)" },
+  chip: { height: 40, borderRadius: 999, paddingHorizontal: 15, justifyContent: "center", backgroundColor: "rgba(255,255,255,0.07)" },
+  scanRow: { marginTop: 10, borderRadius: 22, flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 12, paddingLeft: 12, paddingRight: 16, backgroundColor: "rgba(255,255,255,0.055)" },
+  scanIcon: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.08)" },
   scanCard: { marginTop: 10, borderRadius: 22, padding: 14 },
-  inputRow: { marginTop: 12, flexDirection: "row", alignItems: "center", gap: 10 },
+  inputRow: { marginTop: 20, flexDirection: "row", alignItems: "center", gap: 10 },
   input: {
     flex: 1,
     height: 54,
@@ -330,8 +310,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colour.text,
     backgroundColor: "rgba(255,255,255,0.07)",
-    borderWidth: 1,
-    borderColor: colour.hairline,
     fontFamily: font.regular,
   },
 });

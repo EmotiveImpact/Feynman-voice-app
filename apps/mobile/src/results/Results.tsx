@@ -363,7 +363,7 @@ function Summary({
                 <T size={15.5} style={{ flex: 1 }}>
                   {g.title}
                 </T>
-                <T size={11.5} weight="mono" tone="muted" style={{ textTransform: "uppercase", maxWidth: 110, textAlign: "right" }} lines={2}>
+                <T size={12.5} tone="muted" style={{ maxWidth: 110, textAlign: "right" }} lines={2}>
                   {g.named ? "You named it" : KIND[g.kind]}
                 </T>
               </View>
