@@ -163,3 +163,17 @@ describe("the v10 devices", () => {
     expect(checkPlay(play("step"), g)).toBeNull();
   });
 });
+
+describe("long words", () => {
+  it("keeps one long word whole, for the app to set a little smaller", () => {
+    const r = checkScene({ family: "radial", centre: "Neurotransmitter", spokes: ["Release", "Binding", "Reuptake"], lit: 0, cycle: true });
+    expect(r?.family === "radial" && r.centre).toBe("Neurotransmitter");
+    const e = checkScene({ family: "equation", terms: [{ label: "Electromagnetic", note: "" }, { label: "Force", note: "" }], signs: ["equals"], lit: 0 });
+    expect(e?.family === "equation" && e.terms[0].label).toBe("Electromagnetic");
+  });
+  it("still cuts something far too long to be a word", () => {
+    const r = checkScene({ family: "radial", centre: "Pneumonoultramicroscopicsilicovolcanoconiosis", spokes: ["One", "Two", "Three"], lit: 0, cycle: false });
+    expect(r?.family === "radial" && r.centre.length).toBeLessThanOrEqual(18);
+  });
+});
+

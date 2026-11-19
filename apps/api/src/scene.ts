@@ -808,11 +808,16 @@ const clampInt = (n: unknown, lo: number, hi: number, d: number) => {
   const v = Math.round(Number(n));
   return Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d;
 };
+/** The longest single word a label slot will keep whole. */
+const LONGEST_WORD = 18;
 const short = (s: unknown, words = 3, max = 22) => {
   // Whole words only, up to max characters, so a cut never leaves half a word.
+  // One long word on its own ("Neurotransmitter") is kept whole and the app
+  // sets it a little smaller; only something far too long to be a word is cut.
   const ws = String(s ?? "").trim().split(/\s+/).filter(Boolean).slice(0, words);
-  let out = ws.length ? ws[0].slice(0, max) : "";
-  let cut = ws.length > 0 && ws[0].length > max;
+  const first = max >= 8 ? Math.max(max, LONGEST_WORD) : max;
+  let out = ws.length ? ws[0].slice(0, first) : "";
+  let cut = ws.length > 0 && ws[0].length > first;
   for (let i = 1; i < ws.length; i++) {
     if (out.length + 1 + ws[i].length > max) { cut = true; break; }
     out += " " + ws[i];

@@ -182,13 +182,25 @@ function spark(c: SkCanvas, p: SkPaint, x: number, y: number, a: number, colour 
   }
 }
 
-function label(c: SkCanvas, p: SkPaint, font: SkFont | null, text: string, x: number, y: number, align: "left" | "center" | "right", colour = LAB, a = 1) {
+/** Text drawn exactly where asked. For turned or scaled drawing, where the panel's edges are not where they seem. */
+function rawLabel(c: SkCanvas, p: SkPaint, font: SkFont | null, text: string, x: number, y: number, align: "left" | "center" | "right", colour = LAB, a = 1) {
   "worklet";
   if (!font || !text || a <= 0.01) return;
   const w = font.getTextWidth(text);
   const left = align === "center" ? x - w / 2 : align === "right" ? x - w : x;
   fill(p, colour, a);
   c.drawText(text, left, y + 3.3, p, font);
+}
+
+/** A label. It is nudged sideways if it would run off the panel, so no word is ever lost over the edge. */
+function label(c: SkCanvas, p: SkPaint, font: SkFont | null, text: string, x: number, y: number, align: "left" | "center" | "right", colour = LAB, a = 1) {
+  "worklet";
+  if (!font || !text || a <= 0.01) return;
+  const w = font.getTextWidth(text);
+  const left = align === "center" ? x - w / 2 : align === "right" ? x - w : x;
+  const kept = Math.max(4, Math.min(left, VIEW_W - 4 - w));
+  fill(p, colour, a);
+  c.drawText(text, kept, y + 3.3, p, font);
 }
 
 /** A label on a small patch of the panel's own colour, so a line passing behind it stops short of the words. */
@@ -215,6 +227,86 @@ function fitText(font: SkFont | null, text: string, maxW: number) {
   return ws[0];
 }
 
+/** The smallest a single long word may be set, as a share of the normal size. */
+const SQUEEZE = 0.76;
+
+/** A label held to a width. Whole words drop from the end first; a single long word is then set a little smaller. A word is never cut. */
+function fitLabel(c: SkCanvas, p: SkPaint, font: SkFont | null, text: string, x: number, y: number, align: "left" | "center" | "right", colour: string, a: number, maxW: number) {
+  "worklet";
+  if (!font || !text || a <= 0.01) return;
+  const t = fitText(font, text, maxW);
+  const w = font.getTextWidth(t);
+  if (w <= maxW) {
+    label(c, p, font, t, x, y, align, colour, a);
+    return;
+  }
+  const k = Math.max(SQUEEZE, maxW / w);
+  c.save();
+  c.translate(x, y);
+  c.scale(k, k);
+  rawLabel(c, p, font, t, 0, 0, align, colour, a);
+  c.restore();
+}
+
+function textW(font: SkFont | null, text: string) {
+  "worklet";
+  return font ? font.getTextWidth(text) : text.length * 5;
+}
+
+function label2(c: SkCanvas, p: SkPaint, font: SkFont | null, text: string, x: number, y: number, align: "left" | "center" | "right", colour: string, a: number, maxW: number) {
+  "worklet";
+  if (!font || !text || a <= 0.01) return;
+  const ws = text.split(" ");
+  if (textW(font, text) <= maxW || ws.length < 2) {
+    fitLabel(c, p, font, text, x, y, align, colour, a, maxW);
+    return;
+  }
+  let best = 1;
+  let bestW = 1e9;
+  for (let i = 1; i < ws.length; i++) {
+    const w = Math.max(textW(font, ws.slice(0, i).join(" ")), textW(font, ws.slice(i).join(" ")));
+    if (w < bestW) {
+      bestW = w;
+      best = i;
+    }
+  }
+  const top = ws.slice(0, best).join(" ");
+  const bottom = ws.slice(best).join(" ");
+  if (bestW <= maxW) {
+    label(c, p, font, top, x, y - 5.6, align, colour, a);
+    label(c, p, font, bottom, x, y + 5.6, align, colour, a);
+    return;
+  }
+  // Both lines are set at the same size, so the pair still reads as one name.
+  const k = Math.max(SQUEEZE, maxW / bestW);
+  c.save();
+  c.translate(x, y);
+  c.scale(k, k);
+  rawLabel(c, p, font, top, 0, -5.6, align, colour, a);
+  rawLabel(c, p, font, bottom, 0, 5.6, align, colour, a);
+  c.restore();
+}
+
+/** For labels centred on points along one row, left to right: which must step to a second row so that neighbours do not touch. */
+function stagger(font: SkFont | null, xs: number[], texts: string[], gap: number) {
+  "worklet";
+  const rows: number[] = [];
+  let end0 = -1e9;
+  let end1 = -1e9;
+  for (let i = 0; i < xs.length; i++) {
+    const w = textW(font, texts[i]);
+    const l = Math.max(4, Math.min(xs[i] - w / 2, VIEW_W - 4 - w));
+    if (l >= end0 + gap || l < end1 + gap) {
+      rows.push(0);
+      end0 = l + w;
+    } else {
+      rows.push(1);
+      end1 = l + w;
+    }
+  }
+  return rows;
+}
+
 function axes(c: SkCanvas, p: SkPaint, font: SkFont | null, f: Frame, L: number, T: number, R: number, B: number, xl: string, yl: string) {
   "worklet";
   const k = beat(f, 0, 4);
@@ -225,7 +317,7 @@ function axes(c: SkCanvas, p: SkPaint, font: SkFont | null, f: Frame, L: number,
     c.save();
     c.translate(L - 13, (T + B) / 2);
     c.rotate(-90, 0, 0);
-    label(c, p, font, yl, 0, 0, "center", LAB, k);
+    rawLabel(c, p, font, yl, 0, 0, "center", LAB, k);
     c.restore();
   }
 }
@@ -399,7 +491,7 @@ function drawLinks(c: SkCanvas, p: SkPaint, font: SkFont | null, s: LinksScene, 
     // label goes above a node in the top half and below one in the bottom half, so the links
     // of a zigzag line never run through a name.
     if (s.layout === "fork" && i > 0) {
-      label(c, p, font, fitText(font, s.nodes[i], 300 - x - 17), x + 13, y, "left", lit[i] ? SIL : LAB, a);
+      fitLabel(c, p, font, s.nodes[i], x + 13, y, "left", lit[i] ? SIL : LAB, a, 300 - x - 17);
       continue;
     }
     const below = y >= 80;
@@ -489,9 +581,9 @@ function drawBalance(c: SkCanvas, p: SkPaint, font: SkFont | null, s: BalanceSce
       const row = Math.floor(i / 3);
       ring(c, p, x - 12 + (i % 3) * 12 + (row % 2) * 6, y + 25 - row * 10, 4.6, a, colour);
     }
-    label(c, p, font, side === 0 ? s.left : s.right, x, y + 48, "center", LAB, a);
+    label2(c, p, font, side === 0 ? s.left : s.right, x, y + 50, "center", LAB, a, 104);
   }
-  label(c, p, font, s.middle, cx, 162, "center", heavier !== 0 ? BLUE : LAB, beat(f, 2, 3));
+  fitLabel(c, p, font, s.middle, cx, 162, "center", heavier !== 0 ? BLUE : LAB, beat(f, 2, 3), 90);
 }
 
 // ---- scale and comparison ----
@@ -537,7 +629,7 @@ function drawCompare(c: SkCanvas, p: SkPaint, font: SkFont | null, s: CompareSce
       else if (isLit) dot(c, p, x, y, r, shown, BLUE);
       else if (r < 6) dot(c, p, x, y, r, shown);
       else ring(c, p, x, y, r, shown * 0.85);
-      label(c, p, font, s.items[i].label, x, Math.max(y + r + 14, 104), "center", isLit ? SIL : LAB, shown);
+      label2(c, p, font, s.items[i].label, x, Math.max(y + r + 16, 106), "center", isLit ? SIL : LAB, shown, cell - 8);
     } else {
       const base = 146;
       const top = 22;
@@ -557,7 +649,7 @@ function drawCompare(c: SkCanvas, p: SkPaint, font: SkFont | null, s: CompareSce
         const h0 = (base - top) * ((s.items[i].value * GROW_FROM) / maxV);
         line(c, p, x - 8, base - h0, x + bw + 8, base - h0, 0.45 * shown, SIL, 1, [3, 6]);
       }
-      label(c, p, font, s.items[i].label, x + bw / 2, base + 13, "center", isLit ? SIL : LAB, shown);
+      label2(c, p, font, s.items[i].label, x + bw / 2, base + 15, "center", isLit ? SIL : LAB, shown, 264 / s.items.length - 6);
     }
   }
   if (s.style === "bars") line(c, p, 24, 146, 276, 146, 0.3, SIL, beat(f, 0, 3));
@@ -580,7 +672,7 @@ function drawStairs(c: SkCanvas, p: SkPaint, font: SkFont | null, s: StairsScene
     const on = i <= lvl;
     line(c, p, x, base - i * h, x, y, on ? 0.85 : 0.25, SIL, k);
     line(c, p, x, y, x + w, y, on ? 0.85 : 0.25, SIL, k);
-    label(c, p, font, s.steps[i], x + w / 2, y + 12, "center", on ? SIL : LAB, k);
+    label2(c, p, font, s.steps[i], x + 6, y + 13, "left", on ? SIL : LAB, k, Math.max(w - 8, VIEW_W - 10 - x));
   }
   const px = x0 + lvl * w + w / 2;
   const py = base - (lvl + 1) * h - 9;
@@ -596,18 +688,24 @@ function drawSpectrum(c: SkCanvas, p: SkPaint, font: SkFont | null, s: SpectrumS
   const X = (v: number) => L + ((v - s.min) / (s.max - s.min)) * (R - L);
   line(c, p, L, Y, R, Y, 0.5, SIL, beat(f, 0, 3));
   for (let i = 0; i <= 10; i++) line(c, p, L + (i * (R - L)) / 10, Y - 4, L + (i * (R - L)) / 10, Y + 4, 0.3, SIL, beat(f, 1, 3));
-  label(c, p, font, s.left, L, Y + 24, "left", LAB, beat(f, 1, 3));
-  label(c, p, font, s.right, R, Y + 24, "right", LAB, beat(f, 1, 3));
-  for (let i = 0; i < s.marks.length; i++) {
-    const mx = X(s.marks[i].at);
-    line(c, p, mx, Y - 10, mx, Y - 22, 0.25, SIL, beat(f, 2, 3));
-    label(c, p, font, s.marks[i].label, mx, Y - 30, "center", LAB, beat(f, 2, 3));
+  label2(c, p, font, s.left, L, Y + 26, "left", LAB, beat(f, 1, 3), (R - L) / 2 - 10);
+  label2(c, p, font, s.right, R, Y + 26, "right", LAB, beat(f, 1, 3), (R - L) / 2 - 10);
+  // Marks that would touch their neighbour step up to a second row.
+  const order: number[] = [];
+  for (let i = 0; i < s.marks.length; i++) order.push(i);
+  order.sort((a, b) => s.marks[a].at - s.marks[b].at);
+  const rows = stagger(font, order.map((i) => X(s.marks[i].at)), order.map((i) => s.marks[i].label), 6);
+  for (let j = 0; j < order.length; j++) {
+    const mx = X(s.marks[order[j]].at);
+    const up = rows[j] * 14;
+    line(c, p, mx, Y - 10, mx, Y - 22 - up, 0.25, SIL, beat(f, 2, 3));
+    label(c, p, font, s.marks[order[j]].label, mx, Y - 30 - up, "center", LAB, beat(f, 2, 3));
   }
   const at = hasKind(changes, "slide") ? s.min + f.v * (s.max - s.min) : s.at;
   const k = beat(f, 3, 3);
   dot(c, p, X(at), Y, 6.5, k, BLUE);
   const span = s.max - s.min;
-  label(c, p, font, span <= 20 ? at.toFixed(1) : String(Math.round(at)), X(at), Y - 52, "center", SIL, k);
+  label(c, p, font, span <= 20 ? at.toFixed(1) : String(Math.round(at)), X(at), Y - 60, "center", SIL, k);
 }
 
 // ---- Venn: what two things share ----
@@ -632,8 +730,8 @@ function drawVenn(c: SkCanvas, p: SkPaint, font: SkFont | null, s: VennScene, ch
   // Each name sits in the middle of its circle's own part, and loses words rather than cross a line.
   const aR = Math.min(bx - r, ax + r);
   const bL = Math.max(ax + r, bx - r);
-  label(c, p, font, fitText(font, s.a, aR - (ax - r) - 12), (ax - r + aR) / 2, cy, "center", SIL, beat(f, 0, 3));
-  label(c, p, font, fitText(font, s.b, bx + r - bL - 12), (bL + bx + r) / 2, cy, "center", SIL, beat(f, 1, 3));
+  fitLabel(c, p, font, s.a, (ax - r + aR) / 2, cy, "center", SIL, beat(f, 0, 3), aR - (ax - r) - 12);
+  fitLabel(c, p, font, s.b, (bL + bx + r) / 2, cy, "center", SIL, beat(f, 1, 3), bx + r - bL - 12);
   if (d < 2 * r - 10) label(c, p, font, s.both, 150, cy + r + 18, "center", BLUE, beat(f, 2, 3));
 }
 
@@ -776,8 +874,8 @@ function drawTree(c: SkCanvas, p: SkPaint, font: SkFont | null, s: TreeScene, ch
   const stepping = hasKind(changes, "step");
   const RX = 30;
   const RY = 86;
-  const BX = 126;
-  const LX = 210;
+  const BX = 118;
+  const LX = 196;
   let rows = 0;
   for (let b = 0; b < s.branches.length; b++) rows += Math.max(1, s.branches[b].leaves.length);
   const pitch = Math.min(26, 124 / Math.max(1, rows - 1));
@@ -829,7 +927,7 @@ function drawTree(c: SkCanvas, p: SkPaint, font: SkFont | null, s: TreeScene, ch
       }
       const lit = leafLit && arrived;
       dot(c, p, LX, ly[b][j], lit ? 5 : 3.4, kL, lit ? BLUE : SIL);
-      label(c, p, font, leaves[j], LX + 10, ly[b][j], "left", lit ? SIL : LAB, kL);
+      fitLabel(c, p, font, leaves[j], LX + 10, ly[b][j], "left", lit ? SIL : LAB, kL, VIEW_W - 8 - (LX + 10));
     }
     const branchLit = onPath && !twoLegs && arrived;
     dot(c, p, BX, by[b], 7, kB, PANEL);
@@ -838,13 +936,13 @@ function drawTree(c: SkCanvas, p: SkPaint, font: SkFont | null, s: TreeScene, ch
     // Above the node for branches above the root, below for those under it. A branch level with
     // the root has lines on both sides, so its name sits on a patch that stops them short.
     if (leaves.length) names.push({ t: s.branches[b].label, y: by[b] > RY + 4 ? by[b] + 16 : by[b] - 15, lit: onPath, a: beat(f, 1.6, 3) });
-    else label(c, p, font, s.branches[b].label, BX + 13, by[b], "left", branchLit ? SIL : LAB, beat(f, 1.6, 3));
+    else fitLabel(c, p, font, s.branches[b].label, BX + 13, by[b], "left", branchLit ? SIL : LAB, beat(f, 1.6, 3), VIEW_W - 8 - (BX + 13));
   }
   for (const nm of names) knockLabel(c, p, font, nm.t, BX, nm.y, "center", nm.lit ? SIL : LAB, nm.a);
   const kR = beat(f, 0, 3);
   dot(c, p, RX, RY, 9, kR, PANEL);
   ring(c, p, RX, RY, 9, kR);
-  label(c, p, font, s.root, 14, RY + 22, "left", LAB, kR);
+  knockLabel(c, p, font, fitText(font, s.root, 96), 12, RY + 23, "left", LAB, kR);
 }
 
 // ---- test: does it pass every condition? ----
@@ -876,9 +974,10 @@ function drawTest(c: SkCanvas, p: SkPaint, font: SkFont | null, s: TestScene, ch
     line(c, p, x, Y + 9, x, Y + 22, a * 0.9, col, 1, undefined, w);
     if (lit) dot(c, p, x, Y - 22, 3.2, 1, BLUE);
     const gy = n >= 4 && i % 2 === 1 ? Y - 36 : Y + 36;
-    label(c, p, font, s.gates[i], x, gy, "center", lit ? SIL : LAB, beat(f, 2, 3) * (failedNow && i > fails ? 0.5 : 1));
+    const room = ((G1 - G0) / Math.max(1, n - 1)) * (n >= 4 ? 2 : 1) - 8;
+    label2(c, p, font, s.gates[i], x, gy, "center", lit ? SIL : LAB, beat(f, 2, 3) * (failedNow && i > fails ? 0.5 : 1), n === 1 ? 160 : room);
   }
-  label(c, p, font, s.case, 14, Y - 18, "left", LAB, beat(f, 1, 3));
+  label2(c, p, font, s.case, 12, Y - 22, "left", LAB, beat(f, 1, 3), G0 - 22);
   // The case: lit while it travels, and at the end if it passes everything.
   const x = X0 + (stopX - X0) * kT;
   const moving = kT > 0.01 && !done;
@@ -982,7 +1081,7 @@ function drawCrowd(c: SkCanvas, p: SkPaint, font: SkFont | null, s: CrowdScene, 
     stroke(p, BLUE, 1);
     c.drawPath(path.build(), p);
     dot(c, p, X(kL), Y(standoutY(s, kL)), kL < 0.99 ? 2.6 : 3.4, 1, BLUE);
-    label(c, p, font, s.lit, X(1), Y(standoutY(s, 1)) - 11, "right", SIL, clamp((kL - 0.9) * 10));
+    knockLabel(c, p, font, s.lit, X(1), Y(standoutY(s, 1)) - 13, "right", SIL, clamp((kL - 0.9) * 10));
   }
 }
 
@@ -999,7 +1098,10 @@ function pass(c: SkCanvas, p: SkPaint, x1: number, y1: number, x2: number, y2: n
 function drawGraph(c: SkCanvas, p: SkPaint, font: SkFont | null, s: GraphScene, changes: Change[], f: Frame) {
   "worklet";
   const L = 36;
-  const R = 280;
+  // The plot gives up some width so each curve's name has room at its end.
+  let widest = 0;
+  for (let i = 0; i < s.curves.length; i++) widest = Math.max(widest, textW(font, s.curves[i].label));
+  const R = Math.max(200, Math.min(280, 286 - widest));
   const T = 18;
   const B = 144;
   const X = (x: number) => L + x * (R - L);
@@ -1041,7 +1143,13 @@ function drawGraph(c: SkCanvas, p: SkPaint, font: SkFont | null, s: GraphScene, 
       // Pen-tip light on the lit curve while it draws.
       if (isLit && !ghost && k > 0.02 && k < 0.98) dot(c, p, X(end), Y(shapeY(cv.shape, end, sh, st)), 2.6, 1, BLUE);
     }
-    if (cv.label) label(c, p, font, cv.label, X(0.97) + 6, Y(shapeY(cv.shape, 0.97, shifts[i], stretches[i])), "left", isLit ? BLUE : LAB, beat(f, 3, 4));
+    if (cv.label) {
+      // A short name sits just past the end of its curve. A longer one tucks in above the end, on a patch that stops the line short of the words.
+      const ex = X(0.97);
+      const ey = Y(shapeY(cv.shape, 0.97, shifts[i], stretches[i]));
+      if (ex + 6 + textW(font, cv.label) <= VIEW_W - 4) label(c, p, font, cv.label, ex + 6, ey, "left", isLit ? BLUE : LAB, beat(f, 3, 4));
+      else knockLabel(c, p, font, cv.label, ex + 4, ey > 34 ? ey - 12 : ey + 13, "right", isLit ? BLUE : LAB, beat(f, 3, 4));
+    }
   }
 
   const lit = s.curves[litIndex];
@@ -1138,10 +1246,6 @@ function box(c: SkCanvas, p: SkPaint, x: number, y: number, w: number, h: number
   c.drawRRect(rr, p);
 }
 
-function textW(font: SkFont | null, text: string) {
-  "worklet";
-  return font ? font.getTextWidth(text) : text.length * 5;
-}
 
 /** 1000 as "1,000". */
 function fmt(n: number) {
@@ -1181,7 +1285,7 @@ function drawGrid(c: SkCanvas, p: SkPaint, font: SkFont | null, s: GridScene, ch
   const k0 = beat(f, 0, 3);
   line(c, p, L, MY, R, MY, 0.4, SIL, k0);
   line(c, p, MX, B, MX, T, 0.4, SIL, k0);
-  label(c, p, font, s.x, R, MY + 12, "right", LAB, beat(f, 0.6, 3));
+  label2(c, p, font, s.x, R, MY + 15, "right", LAB, beat(f, 0.6, 3), R - MX - 8);
   label(c, p, font, s.y, MX, T - 12, "center", LAB, beat(f, 0.6, 3));
   // Keep the item clear of the corner names.
   const X = L + s.atX * (R - L);
@@ -1197,15 +1301,16 @@ function drawGrid(c: SkCanvas, p: SkPaint, font: SkFont | null, s: GridScene, ch
   const qx = [L + 4, R - 4, L + 4, R - 4];
   const qy = [T + 9, T + 9, B - 7, B - 7];
   const qa: ("left" | "right")[] = ["left", "right", "left", "right"];
-  for (let i = 0; i < 4; i++) label(c, p, font, s.quadrants[i], qx[i], qy[i], qa[i], arrived && i === q ? SIL : LAB, kQ * (arrived && i !== q ? 0.7 : 1));
+  for (let i = 0; i < 4; i++) label2(c, p, font, s.quadrants[i], qx[i], qy[i] + (i < 2 ? 3 : -3), qa[i], arrived && i === q ? SIL : LAB, kQ * (arrived && i !== q ? 0.7 : 1), (R - L) / 2 - 12);
   const kI = beat(f, 2, 3);
   if (u > 0.02 && u < 0.98 && !f.still) {
     for (let j = 1; j <= 3; j++) dot(c, p, x - (X - fx) * 0.05 * j, y - (Y - fy) * 0.05 * j, 3 - j * 0.6, (0.5 - j * 0.12) * kI);
   }
   dot(c, p, x, y, 5, kI, BLUE);
   // The name sits toward the middle line, away from the corner names.
-  const right = x < R - 72;
-  label(c, p, font, s.item, right ? x + 10 : x - 10, y < MY ? y + 10 : y - 10, right ? "left" : "right", SIL, kI);
+  const iw = textW(font, s.item);
+  const right = x < MX ? x + 10 + iw <= MX - 4 || x - 10 - iw < 4 : x + 10 + iw <= VIEW_W - 4;
+  knockLabel(c, p, font, s.item, right ? x + 10 : x - 10, y < MY ? y + 10 : y - 10, right ? "left" : "right", SIL, kI);
 }
 
 // ---- timeline: when, and in what order? ----
@@ -1289,7 +1394,7 @@ function drawLayers(c: SkCanvas, p: SkPaint, font: SkFont | null, s: LayersScene
         fillPts(c, p, pts.concat(inner), 0.14 * kLit, BLUE);
       }
       strokePts(c, p, arcPts(CX, CY, ro, Math.PI, Math.PI + Math.PI * k, 40), lit ? kLit : 0.55, lit ? BLUE : SIL, lit ? W0 + 0.4 : W0);
-      label(c, p, font, s.layers[i], CX, CY - (ro + ri) / 2, "center", lit ? SIL : LAB, k);
+      label2(c, p, font, s.layers[i], CX, CY - (ro + ri) / 2, "center", lit ? SIL : LAB, k, 2 * Math.sqrt(ro * ro - ((ro + ri) / 2) * ((ro + ri) / 2)) - 12);
     }
     label(c, p, font, s.whole, CX, CY + 13, "center", LAB, beat(f, 1, 3));
     return;
@@ -1304,7 +1409,7 @@ function drawLayers(c: SkCanvas, p: SkPaint, font: SkFont | null, s: LayersScene
     const y = top + i * (h + 4) - (1 - k) * 8;
     const lit = i === litI && kLit > 0.5;
     box(c, p, X, y, W, h, k, lit);
-    label(c, p, font, s.layers[i], X + W / 2, y + h / 2, "center", lit ? SIL : LAB, k);
+    fitLabel(c, p, font, s.layers[i], X + W / 2, y + h / 2, "center", lit ? SIL : LAB, k, W - 14);
   }
   if (s.whole) {
     const kW = beat(f, 1.6, 3);
@@ -1312,7 +1417,7 @@ function drawLayers(c: SkCanvas, p: SkPaint, font: SkFont | null, s: LayersScene
     c.save();
     c.translate(X - 22, top + total / 2);
     c.rotate(-90, 0, 0);
-    label(c, p, font, s.whole, 0, 0, "center", LAB, kW);
+    rawLabel(c, p, font, s.whole, 0, 0, "center", LAB, kW);
     c.restore();
   }
 }
@@ -1398,8 +1503,8 @@ function drawMirror(c: SkCanvas, p: SkPaint, font: SkFont | null, s: MirrorScene
   const span = Math.min(32 * (n - 1), B - T);
   const topY = (T + B) / 2 - span / 2;
   line(c, p, MX, topY - 26, MX, topY + span + 22, 0.35, SIL, beat(f, 0, 3), [4, 6]);
-  label(c, p, font, s.leftTitle, LX, topY - 26, "right", LAB, beat(f, 0.5, 3));
-  label(c, p, font, s.rightTitle, RX, topY - 26, "left", LAB, beat(f, 0.5, 3));
+  fitLabel(c, p, font, s.leftTitle, LX, topY - 26, "right", LAB, beat(f, 0.5, 3), LX - 8);
+  fitLabel(c, p, font, s.rightTitle, RX, topY - 26, "left", LAB, beat(f, 0.5, 3), VIEW_W - RX - 8);
   const litI = stepping ? Math.min(n - 1, Math.floor(f.v * n)) : s.lit;
   const prog = stepping ? clamp((f.v * n - litI) * 1.6) : beat(f, 2.4, 3);
   const pitch = Math.min(32, (B - T) / Math.max(1, n - 1));
@@ -1413,8 +1518,8 @@ function drawMirror(c: SkCanvas, p: SkPaint, font: SkFont | null, s: MirrorScene
     const rightOn = lit && prog >= 0.999;
     dot(c, p, LX, y, leftOn ? 4.2 : 3, k, leftOn ? BLUE : SIL);
     dot(c, p, RX, y, rightOn ? 4.2 : 3, k, rightOn ? BLUE : SIL);
-    label(c, p, font, fitText(font, s.pairs[i].left, LX - 15), LX - 11, y, "right", lit ? SIL : LAB, k);
-    label(c, p, font, fitText(font, s.pairs[i].right, 300 - RX - 15), RX + 11, y, "left", lit ? SIL : LAB, k);
+    fitLabel(c, p, font, s.pairs[i].left, LX - 11, y, "right", lit ? SIL : LAB, k, LX - 15);
+    fitLabel(c, p, font, s.pairs[i].right, RX + 11, y, "left", lit ? SIL : LAB, k, 300 - RX - 15);
     if (lit) pass(c, p, LX + 5, y, RX - 5, y, prog);
   }
 }
@@ -1431,7 +1536,7 @@ function drawStack(c: SkCanvas, p: SkPaint, font: SkFont | null, s: StackScene, 
   const BOT = 150;
   const yOf = (i: number) => BOT - (i + 1) * H - i * G;
   line(c, p, X - 14, BOT + 3, X + W + 14, BOT + 3, 0.5, SIL, beat(f, 0, 3));
-  label(c, p, font, s.label, X - 18, BOT - 8, "right", LAB, beat(f, 0.5, 3));
+  label2(c, p, font, s.label, X - 16, BOT - 10, "right", LAB, beat(f, 0.5, 3), X - 24);
   // How far through the action: the top item drops in (push) or lifts off (pop).
   let placed = n - 1;
   let moving = n - 1;
@@ -1456,7 +1561,7 @@ function drawStack(c: SkCanvas, p: SkPaint, font: SkFont | null, s: StackScene, 
         const y = yOf(i) - (1 - ease(u)) * 46;
         const a = clamp(u * 3);
         box(c, p, X, y, W, H, a, true);
-        label(c, p, font, s.items[i], 150, y + H / 2, "center", SIL, a);
+        fitLabel(c, p, font, s.items[i], 150, y + H / 2, "center", SIL, a, W - 12);
         continue;
       }
       if (stepping && i >= placed) continue;
@@ -1466,12 +1571,12 @@ function drawStack(c: SkCanvas, p: SkPaint, font: SkFont | null, s: StackScene, 
         const y = yOf(i) - ease(u) * 40;
         const a = (1 - u * 0.6) * kI;
         box(c, p, X, y, W, H, a, u > 0.01);
-        label(c, p, font, s.items[i], 150, y + H / 2, "center", u > 0.01 ? SIL : LAB, a);
+        fitLabel(c, p, font, s.items[i], 150, y + H / 2, "center", u > 0.01 ? SIL : LAB, a, W - 12);
         continue;
       }
     }
     box(c, p, X, yOf(i), W, H, kI, false);
-    label(c, p, font, s.items[i], 150, yOf(i) + H / 2, "center", LAB, kI);
+    fitLabel(c, p, font, s.items[i], 150, yOf(i) + H / 2, "center", LAB, kI, W - 12);
   }
 }
 
@@ -1485,7 +1590,11 @@ function drawRadial(c: SkCanvas, p: SkPaint, font: SkFont | null, s: RadialScene
   const CX = 150;
   const CY = 88;
   const R = 58;
-  const RC = 21;
+  // The centre ring opens up for a long word, so the word never touches it.
+  let cw = 0;
+  const cws = s.centre.split(" ");
+  for (let i = 0; i < cws.length; i++) cw = Math.max(cw, textW(font, cws[i]));
+  const RC = Math.max(21, Math.min(31, cw / 2 + 8));
   const ang = (i: number) => -Math.PI / 2 + (i * TAU) / n;
   const litI = stepping ? Math.min(n - 1, Math.floor(f.v * n)) : s.lit;
   const prog = stepping ? clamp((f.v * n - litI) * 1.5) : beat(f, 2.4, 3);
@@ -1523,12 +1632,12 @@ function drawRadial(c: SkCanvas, p: SkPaint, font: SkFont | null, s: RadialScene
     const align = cs > 0.25 ? "left" : cs < -0.25 ? "right" : "center";
     const lx = CX + (R + 12) * cs;
     const ly = CY + (R + 12) * sn + (align === "center" ? (sn > 0 ? 3 : -3) : 0);
-    label(c, p, font, s.spokes[i], lx, ly, align, arrived ? SIL : LAB, k);
+    label2(c, p, font, s.spokes[i], lx, ly, align, arrived ? SIL : LAB, k, align === "left" ? VIEW_W - 6 - lx : align === "right" ? lx - 6 : 150);
   }
   const kC = beat(f, 0, 3);
   dot(c, p, CX, CY, RC, kC, PANEL);
   ring(c, p, CX, CY, RC, kC);
-  label(c, p, font, s.centre, CX, CY, "center", SIL, kC);
+  label2(c, p, font, s.centre, CX, CY, "center", SIL, kC, 2 * RC - 8);
 }
 
 // ---- cutaway: what is the whole made of? ----
@@ -1570,7 +1679,7 @@ function drawCutaway(c: SkCanvas, p: SkPaint, font: SkFont | null, s: CutawaySce
     const k = stepping ? 1 : beat(f, 1.4 + (i / n) * 0.8, 3);
     const lit = i === litI && kL > 0.5;
     dot(c, p, 176, y, lit ? 3.4 : 2.4, k, lit ? BLUE : SIL);
-    label(c, p, font, s.parts[i].label, 186, y, "left", lit ? SIL : LAB, k);
+    fitLabel(c, p, font, s.parts[i].label, 186, y, "left", lit ? SIL : LAB, k, 290 - textW(font, pct(s.parts[i].share)) - 8 - 186);
     label(c, p, font, pct(s.parts[i].share), 290, y, "right", lit ? SIL : LAB, k);
   }
   label(c, p, font, s.whole, CX, CY + R + 14, "center", LAB, beat(f, 0.6, 3));
@@ -1614,9 +1723,9 @@ function drawSankey(c: SkCanvas, p: SkPaint, font: SkFont | null, s: SankeyScene
   "worklet";
   const stepping = hasKind(changes, "step");
   const n = s.splits.length;
-  const XS = 30;
-  const XM = 96;
-  const XE = 206;
+  const XS = 20;
+  const XM = 84;
+  const XE = 190;
   const H = 96;
   const TOP = 40;
   const GAP = 6;
@@ -1669,7 +1778,7 @@ function drawSankey(c: SkCanvas, p: SkPaint, font: SkFont | null, s: SankeyScene
           dot(c, p, XM + (XE - XM) * u, sy + h / 2 + (tyb - sy) * e, 1.8, 0.55, lit ? BLUE : SIL);
         }
       }
-      label(c, p, font, s.splits[i].label, XE + 8, tyb + h / 2 - 5, "left", lit ? SIL : LAB, k);
+      fitLabel(c, p, font, s.splits[i].label, XE + 8, tyb + h / 2 - 5, "left", lit ? SIL : LAB, k, VIEW_W - 8 - (XE + 8));
       label(c, p, font, pct(s.splits[i].share), XE + 8, tyb + h / 2 + 7, "left", LAB, k);
     }
     sy += h;
@@ -1775,7 +1884,7 @@ function drawSpiral(c: SkCanvas, p: SkPaint, font: SkFont | null, s: SpiralScene
     const lit = lp > 0.01 && i === cur;
     // Names sit outside the last turn, so the light never runs over them.
     const lr = R1 + 15;
-    label(c, p, font, s.stages[i], CX + lr * cs, CY + lr * sn + (align === "center" ? (sn > 0 ? 4 : -4) : 0), align, lit ? SIL : LAB, beat(f, 1.6, 3));
+    label2(c, p, font, s.stages[i], CX + lr * cs, CY + lr * sn + (align === "center" ? (sn > 0 ? 4 : -4) : 0), align, lit ? SIL : LAB, beat(f, 1.6, 3), align === "left" ? VIEW_W - 6 - (CX + lr * cs) : align === "right" ? CX + lr * cs - 6 : 200);
   }
   if (lp > 0.01) {
     const tail: number[] = [];
@@ -1831,8 +1940,8 @@ function drawZoom(c: SkCanvas, p: SkPaint, font: SkFont | null, s: ZoomScene, ch
       line(c, p, sx + sq, sy + sq, nx - r * 0.72, Y + r * 0.7, 0.22, SIL, k2);
       if (i === litI - 1 && !stepping) pass(c, p, sx + sq, sy + sq / 2, nx - r, Y, beat(f, 2.2, 3));
     }
-    label(c, p, font, fitText(font, s.levels[i].label, gap - 6), x, Y + r + 13, "center", lit ? SIL : LAB, k);
-    label(c, p, font, fitText(font, s.levels[i].size, gap - 6), x, Y + r + 26, "center", LAB, k * 0.75);
+    fitLabel(c, p, font, s.levels[i].label, x, Y + r + 13, "center", lit ? SIL : LAB, k, gap - 6);
+    fitLabel(c, p, font, s.levels[i].size, x, Y + r + 26, "center", LAB, k * 0.75, gap - 6);
   }
 }
 
@@ -1960,7 +2069,7 @@ function drawMap(c: SkCanvas, p: SkPaint, font: SkFont | null, s: MapScene, chan
       }
     }
     const al = best === 0 ? "left" : best === 1 ? "right" : "center";
-    label(c, p, font, s.places[i].label, cx[best], cy[best], al, lit ? SIL : LAB, k);
+    fitLabel(c, p, font, s.places[i].label, cx[best], cy[best], al, lit ? SIL : LAB, k, 104);
   }
 }
 
@@ -2136,7 +2245,7 @@ function drawParts(c: SkCanvas, p: SkPaint, font: SkFont | null, s: ThingsScene,
     const col = lit ? SIL : LAB;
     const txt = parts[i].label;
     const ws = txt.split(" ");
-    if (textW(font, txt) <= room || ws.length < 2) label(c, p, font, fitText(font, txt, room), ex + side[i] * 11, ly[i] + 3, al, col, k);
+    if (textW(font, txt) <= room || ws.length < 2) fitLabel(c, p, font, txt, ex + side[i] * 11, ly[i] + 3, al, col, k, room);
     else {
       // Too long for one line: two lines, the break where they are most even.
       let best = 1;
@@ -2145,8 +2254,8 @@ function drawParts(c: SkCanvas, p: SkPaint, font: SkFont | null, s: ThingsScene,
         const w = Math.max(textW(font, ws.slice(0, j).join(" ")), textW(font, ws.slice(j).join(" ")));
         if (w < bestW) { bestW = w; best = j; }
       }
-      label(c, p, font, fitText(font, ws.slice(0, best).join(" "), room), ex + side[i] * 11, ly[i] - 2, al, col, k);
-      label(c, p, font, fitText(font, ws.slice(best).join(" "), room), ex + side[i] * 11, ly[i] + 9, al, col, k);
+      fitLabel(c, p, font, ws.slice(0, best).join(" "), ex + side[i] * 11, ly[i] - 2, al, col, k, room);
+      fitLabel(c, p, font, ws.slice(best).join(" "), ex + side[i] * 11, ly[i] + 9, al, col, k, room);
     }
   }
   if (s.items[0].label) label(c, p, font, s.items[0].label, CX, 170, "center", LAB, beat(f, 0.6, 3));
@@ -2186,7 +2295,7 @@ function drawThings(c: SkCanvas, p: SkPaint, font: SkFont | null, s: ThingsScene
     strokePts(c, p, ellipsePts(CX, CY, RX, RY, beat(f, 0.8, 3)), 0.22, SIL, W0, [2, 5]);
     drawThing(c, p, s.items[0].thing, CX, CY, 25, 1, isLit(0), kOf(0));
     // The centre's name sits to its left, where the orbit never passes close.
-    label(c, p, font, s.items[0].label, CX - 31, CY, "right", isLit(0) ? SIL : LAB, kOf(0));
+    knockLabel(c, p, font, fitText(font, s.items[0].label, CX - 40), CX - 31, CY, "right", isLit(0) ? SIL : LAB, kOf(0));
     if (n > 1) {
       const k1 = kOf(1);
       const ex = CX + RX * Math.cos(tm);
@@ -2198,7 +2307,7 @@ function drawThings(c: SkCanvas, p: SkPaint, font: SkFont | null, s: ThingsScene
         const my = ey + 25 * Math.sin(tm2);
         drawThing(c, p, s.items[2].thing, mx, my, 6, 1, isLit(2), kOf(2), 1.3);
         // Its name sits on the far side from what it goes round, so it never covers it.
-        label(c, p, font, s.items[2].label, mx + Math.cos(tm2) * 14, my + Math.sin(tm2) * 12, Math.cos(tm2) > 0.3 ? "left" : Math.cos(tm2) < -0.3 ? "right" : "center", isLit(2) ? SIL : LAB, kOf(2));
+        label(c, p, font, fitText(font, s.items[2].label, 84), mx + Math.cos(tm2) * 14, my + Math.sin(tm2) * 12, Math.cos(tm2) > 0.3 ? "left" : Math.cos(tm2) < -0.3 ? "right" : "center", isLit(2) ? SIL : LAB, kOf(2));
       }
       drawThing(c, p, s.items[1].thing, ex, ey, 13, 1, isLit(1), k1);
       if (n > 2) {
@@ -2206,10 +2315,11 @@ function drawThings(c: SkCanvas, p: SkPaint, font: SkFont | null, s: ThingsScene
         // It sits just outside the moon's path, and never runs off the panel.
         const d = tm * 3.2 - 2.4 + Math.PI;
         const al = Math.cos(d) > 0.3 ? "left" : Math.cos(d) < -0.3 ? "right" : "center";
-        const tw = font ? font.getTextWidth(s.items[1].label) : 0;
+        const name1 = fitText(font, s.items[1].label, 96);
+        const tw = font ? font.getTextWidth(name1) : 0;
         const lx0 = ex + Math.cos(d) * 31;
         const lx = al === "left" ? Math.min(lx0, 297 - tw) : al === "right" ? Math.max(lx0, 3 + tw) : Math.max(3 + tw / 2, Math.min(297 - tw / 2, lx0));
-        label(c, p, font, s.items[1].label, lx, clamp(ey + Math.sin(d) * 31, 8, 170), al, isLit(1) ? SIL : LAB, k1);
+        label(c, p, font, name1, lx, clamp(ey + Math.sin(d) * 31, 8, 170), al, isLit(1) ? SIL : LAB, k1);
       } else label(c, p, font, s.items[1].label, ex, ey + 22, "center", isLit(1) ? SIL : LAB, k1);
     }
     return;
@@ -2238,12 +2348,13 @@ function drawThings(c: SkCanvas, p: SkPaint, font: SkFont | null, s: ThingsScene
       // Too small to draw at this scale: a dot where it stands, so the scale stays honest.
       if (tiny) dot(c, p, cx, BASE - 2.4, 2.4, k, isLit(i) ? BLUE : SIL);
       else drawThing(c, p, s.items[i].thing, cx, BASE - hs[i] * 1.05, hs[i], 1, isLit(i), k);
-      const lw = textW(font, s.items[i].label);
+      const name = fitText(font, s.items[i].label, 100);
+      const lw = textW(font, name);
       const al = alignAt(cx);
-      const left = al === "left" ? cx : al === "right" ? cx - lw : cx - lw / 2;
+      const left = Math.max(4, Math.min(al === "left" ? cx : al === "right" ? cx - lw : cx - lw / 2, VIEW_W - 4 - lw));
       const low = left < lastEnd + 6;
       if (low) line(c, p, cx, BASE + 4, cx, BASE + 18, 0.3 * k, SIL);
-      label(c, p, font, s.items[i].label, cx, BASE + (low ? 25 : 12), al, isLit(i) ? SIL : LAB, k);
+      label(c, p, font, name, cx, BASE + (low ? 25 : 12), al, isLit(i) ? SIL : LAB, k);
       if (!low) lastEnd = left + lw;
       xx += slot + gap;
     }
@@ -2259,7 +2370,7 @@ function drawThings(c: SkCanvas, p: SkPaint, font: SkFont | null, s: ThingsScene
   for (let i = 0; i < n; i++) {
     const k = kOf(i);
     drawThing(c, p, s.items[i].thing, xs[i], Y, H, 1, isLit(i), k);
-    label(c, p, font, s.items[i].label, xs[i], Y + H + 16, alignAt(xs[i]), isLit(i) ? SIL : LAB, k);
+    label2(c, p, font, s.items[i].label, xs[i], Y + H + 18, n === 1 ? "center" : alignAt(xs[i]), isLit(i) ? SIL : LAB, k, n === 1 ? 260 : s.layout === "versus" ? 124 : pitch - 8);
     if (s.layout === "chain" && i < n - 1) {
       const x1 = xs[i] + H + 8;
       const x2 = xs[i + 1] - H - 8;
@@ -2277,26 +2388,6 @@ function drawThings(c: SkCanvas, p: SkPaint, font: SkFont | null, s: ThingsScene
 // only of the same marks: dots, rings, lines, links, soft boxes and labels.
 
 /** A label that may take two lines: split at the word that balances them best, never mid-word. */
-function label2(c: SkCanvas, p: SkPaint, font: SkFont | null, text: string, x: number, y: number, align: "left" | "center" | "right", colour: string, a: number, maxW: number) {
-  "worklet";
-  if (!font || !text || a <= 0.01) return;
-  const ws = text.split(" ");
-  if (textW(font, text) <= maxW || ws.length < 2) {
-    label(c, p, font, fitText(font, text, maxW), x, y, align, colour, a);
-    return;
-  }
-  let best = 1;
-  let bestW = 1e9;
-  for (let i = 1; i < ws.length; i++) {
-    const w = Math.max(textW(font, ws.slice(0, i).join(" ")), textW(font, ws.slice(i).join(" ")));
-    if (w < bestW) {
-      bestW = w;
-      best = i;
-    }
-  }
-  label(c, p, font, fitText(font, ws.slice(0, best).join(" "), maxW), x, y - 5.6, align, colour, a);
-  label(c, p, font, fitText(font, ws.slice(best).join(" "), maxW), x, y + 5.6, align, colour, a);
-}
 
 /** A dashed soft box: a place still to be filled, or a thing set against the rest. */
 function dashBox(c: SkCanvas, p: SkPaint, x: number, y: number, w: number, h: number, a: number, r = 4) {
@@ -2340,7 +2431,7 @@ function drawSpectra(c: SkCanvas, p: SkPaint, font: SkFont | null, s: SpectraSce
   const X1 = 216;
   const pitch = Math.min(32, 104 / n);
   const y0 = 98 - (pitch * (n - 1)) / 2;
-  label(c, p, font, s.item, 150, 22, "center", SIL, beat(f, 0.3, 3));
+  fitLabel(c, p, font, s.item, 150, 22, "center", SIL, beat(f, 0.3, 3), 260);
   const litI = stepping ? Math.min(n - 1, Math.floor(f.v * n)) : s.lit;
   const kL = stepping ? 1 : beat(f, 2.7, 3);
   for (let i = 0; i < n; i++) {
@@ -2351,8 +2442,8 @@ function drawSpectra(c: SkCanvas, p: SkPaint, font: SkFont | null, s: SpectraSce
     line(c, p, X0, y, X1, y, lit ? 0.6 : 0.34, SIL, k);
     line(c, p, X0, y - 4, X0, y + 4, 0.34 * k);
     line(c, p, X1, y - 4, X1, y + 4, 0.34 * k);
-    label(c, p, font, fitText(font, row.left, X0 - 16), X0 - 9, y, "right", lit ? SIL : LAB, k);
-    label(c, p, font, fitText(font, row.right, 300 - X1 - 16), X1 + 9, y, "left", lit ? SIL : LAB, k);
+    fitLabel(c, p, font, row.left, X0 - 9, y, "right", lit ? SIL : LAB, k, X0 - 16);
+    fitLabel(c, p, font, row.right, X1 + 9, y, "left", lit ? SIL : LAB, k, 300 - X1 - 16);
     const u = beat(f, 1.5 + (i / n) * 0.7, 3);
     const x = X0 + (X1 - X0) * (0.5 + (row.at - 0.5) * u);
     if (lit) dot(c, p, x, y, 5, k, BLUE);
@@ -2382,14 +2473,14 @@ function drawPattern(c: SkCanvas, p: SkPaint, font: SkFont | null, s: PatternSce
     if (i === s.gap) {
       if (shown) {
         box(c, p, x, Y, bw, H, 1, true, 7);
-        label(c, p, font, fitText(font, s.answer, bw - 6), x + bw / 2, Y + H / 2, "center", SIL, 1);
+        fitLabel(c, p, font, s.answer, x + bw / 2, Y + H / 2, "center", SIL, 1, bw - 6);
       } else {
         dashBox(c, p, x, Y, bw, H, k, 7);
         label(c, p, font, "?", x + bw / 2, Y + H / 2, "center", LAB, k);
       }
     } else {
       box(c, p, x, Y, bw, H, k, false, 7);
-      label(c, p, font, fitText(font, s.items[i], bw - 6), x + bw / 2, Y + H / 2, "center", SIL, k * 0.9);
+      fitLabel(c, p, font, s.items[i], x + bw / 2, Y + H / 2, "center", SIL, k * 0.9, bw - 6);
     }
   }
   label(c, p, font, s.rule, 150, Y + H + 24, "center", shown ? SIL : LAB, beat(f, 1.8, 3));
@@ -2414,7 +2505,7 @@ function drawMachine(c: SkCanvas, p: SkPaint, font: SkFont | null, s: MachineSce
     const y = CY + (i - (ni - 1) / 2) * 32;
     const by = CY + (i - (ni - 1) / 2) * 14;
     const k = beat(f, 0.8 + (i / ni) * 0.6, 3);
-    label(c, p, font, fitText(font, s.inputs[i], 76), 82, y, "right", LAB, k);
+    fitLabel(c, p, font, s.inputs[i], 82, y, "right", LAB, k, 76);
     arrow(c, p, 88, y, BX - 5, by, 0.55 * k, SIL, k);
   }
   for (let j = 0; j < no; j++) {
@@ -2426,7 +2517,7 @@ function drawMachine(c: SkCanvas, p: SkPaint, font: SkFont | null, s: MachineSce
     arrow(c, p, BX + BW + 5, by, 212, y, 0.55 * k, SIL, k);
     if (lit) pass(c, p, BX + BW + 5, by, 212, y, prog);
     if (done) dot(c, p, 212, y, 4.2, 1, BLUE);
-    label(c, p, font, fitText(font, s.outputs[j], 74), 220, y, "left", done ? SIL : LAB, k);
+    fitLabel(c, p, font, s.outputs[j], 220, y, "left", done ? SIL : LAB, k, 74);
   }
 }
 
@@ -2566,8 +2657,8 @@ function drawEquation(c: SkCanvas, p: SkPaint, font: SkFont | null, s: EquationS
     const k = beat(f, 0.3 + (i / n) * 1.5, 3);
     const lit = i === litI && kL > 0.5;
     box(c, p, x, Y, w, H, k, lit, 8);
-    label(c, p, font, fitText(font, s.terms[i].label, w - 8), x + w / 2, Y + H / 2, "center", SIL, k * (lit ? 1 : 0.9));
-    label(c, p, font, fitText(font, s.terms[i].note, w + SG - 6), x + w / 2, Y + H + 14, "center", lit ? SIL : LAB, k);
+    fitLabel(c, p, font, s.terms[i].label, x + w / 2, Y + H / 2, "center", SIL, k * (lit ? 1 : 0.9), w - 8);
+    fitLabel(c, p, font, s.terms[i].note, x + w / 2, Y + H + 14, "center", lit ? SIL : LAB, k, w + SG - 6);
     if (i < n - 1) sign(c, p, s.signs[i], x + w + SG / 2, Y + H / 2, beat(f, 0.6 + (i / n) * 1.5, 3));
     x += w + SG;
   }
@@ -2587,8 +2678,8 @@ function drawBridge(c: SkCanvas, p: SkPaint, font: SkFont | null, s: BridgeScene
   const pitch = Math.min(30, 100 / Math.max(1, Math.max(nl, nr) - 1));
   const yl = (i: number) => CY + (i - (nl - 1) / 2) * pitch;
   const yr = (i: number) => CY + (i - (nr - 1) / 2) * pitch;
-  label(c, p, font, s.leftTitle, LX, 22, "right", LAB, beat(f, 0.3, 3) * 0.85);
-  label(c, p, font, s.rightTitle, RX, 22, "left", LAB, beat(f, 0.3, 3) * 0.85);
+  fitLabel(c, p, font, s.leftTitle, LX, 22, "right", LAB, beat(f, 0.3, 3) * 0.85, LX - 8);
+  fitLabel(c, p, font, s.rightTitle, RX, 22, "left", LAB, beat(f, 0.3, 3) * 0.85, VIEW_W - RX - 8);
   const litI = stepping ? Math.min(m - 1, Math.floor(f.v * m)) : s.lit;
   const prog = stepping ? clamp((f.v * m - litI) * 1.5) : beat(f, 2.7, 3);
   const lm = s.maps[litI];
@@ -2602,13 +2693,13 @@ function drawBridge(c: SkCanvas, p: SkPaint, font: SkFont | null, s: BridgeScene
     const k = beat(f, 0.5 + (i / nl) * 0.7, 3);
     const lit = i === lm.from && prog > 0.01;
     dot(c, p, LX, yl(i), lit ? 4.2 : 3, k, lit ? BLUE : SIL);
-    label(c, p, font, fitText(font, s.left[i], LX - 18), LX - 11, yl(i), "right", lit ? SIL : LAB, k);
+    fitLabel(c, p, font, s.left[i], LX - 11, yl(i), "right", lit ? SIL : LAB, k, LX - 18);
   }
   for (let i = 0; i < nr; i++) {
     const k = beat(f, 0.8 + (i / nr) * 0.7, 3);
     const lit = i === lm.to && prog >= 0.999;
     dot(c, p, RX, yr(i), lit ? 4.2 : 3, k, lit ? BLUE : SIL);
-    label(c, p, font, fitText(font, s.right[i], 300 - RX - 18), RX + 11, yr(i), "left", lit ? SIL : LAB, k);
+    fitLabel(c, p, font, s.right[i], RX + 11, yr(i), "left", lit ? SIL : LAB, k, 300 - RX - 18);
   }
 }
 
@@ -2758,7 +2849,7 @@ function drawMatrix(c: SkCanvas, p: SkPaint, font: SkFont | null, s: MatrixScene
     c.save();
     c.translate(16, (T + B) / 2);
     c.rotate(-90, 0, 0);
-    label(c, p, font, s.rowTitle, 0, 0, "center", LAB, beat(f, 0.4, 3) * 0.8);
+    rawLabel(c, p, font, s.rowTitle, 0, 0, "center", LAB, beat(f, 0.4, 3) * 0.8);
     c.restore();
   }
   const cells = nr * nc;
@@ -2766,7 +2857,7 @@ function drawMatrix(c: SkCanvas, p: SkPaint, font: SkFont | null, s: MatrixScene
   const lr = stepping ? Math.floor(stepI / nc) : s.litRow;
   const lc = stepping ? stepI % nc : s.litCol;
   const kL = stepping ? 1 : beat(f, 2.7, 3);
-  for (let j = 0; j < nc; j++) label(c, p, font, fitText(font, s.cols[j], cw - 6), L + j * cw + cw / 2, T - 12, "center", j === lc && kL > 0.5 ? SIL : LAB, beat(f, 0.6, 3));
+  for (let j = 0; j < nc; j++) fitLabel(c, p, font, s.cols[j], L + j * cw + cw / 2, T - 12, "center", j === lc && kL > 0.5 ? SIL : LAB, beat(f, 0.6, 3), cw - 6);
   for (let i = 0; i < nr; i++) label2(c, p, font, s.rows[i], L - 8, T + i * rh + rh / 2, "right", i === lr && kL > 0.5 ? SIL : LAB, beat(f, 0.6, 3), L - 34);
   for (let i = 0; i < nr; i++)
     for (let j = 0; j < nc; j++) {
@@ -2990,7 +3081,7 @@ function drawWorking(c: SkCanvas, p: SkPaint, font: SkFont | null, s: WorkingSce
     const nw = textW(font, s.lines[i].note);
     if (lit) dot(c, p, 30, y, 3.6, 1, BLUE);
     else dot(c, p, 30, y, 2.2, k * 0.7);
-    label(c, p, font, fitText(font, s.lines[i].text, NX - TX - nw - 14), TX, y, "left", SIL, k * (lit ? 1 : 0.72));
+    fitLabel(c, p, font, s.lines[i].text, TX, y, "left", SIL, k * (lit ? 1 : 0.72), NX - TX - nw - 14);
     label(c, p, font, s.lines[i].note, NX, y, "right", LAB, k * (lit ? 1 : 0.7));
   }
 }
@@ -3144,6 +3235,9 @@ function handCanvas(c: SkCanvas) {
     },
     rotate(d: number, x: number, y: number) {
       c.rotate(d, x, y);
+    },
+    scale(x: number, y: number) {
+      c.scale(x, y);
     },
     clipPath(path: unknown, op: number, aa: boolean) {
       c.clipPath(path as never, op as never, aa);
