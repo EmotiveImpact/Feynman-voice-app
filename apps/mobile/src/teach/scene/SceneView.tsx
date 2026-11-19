@@ -5,13 +5,17 @@
 // In Teach me's film the voice drives it instead: build (0 to 1) says how far
 // the drawing has built, and nothing moves until moving turns to 1, on the
 // line that names the change, so a guess is never given away.
+// The look comes from Me: clean lines, hand-drawn lines, or hand-drawn lines
+// that are redrawn a few times a second (the wobble), which keeps going even
+// while the film holds the scene still. Reduce Motion stops the wobble.
 import { useState } from "react";
 import { View, type LayoutChangeEvent } from "react-native";
 import { Canvas, Group, Picture, createPicture, useFont } from "@shopify/react-native-skia";
 import { useDerivedValue, useFrameCallback, useReducedMotion, useSharedValue, type SharedValue } from "react-native-reanimated";
-import { drawScene, HAND_DRAWN, speedAt, VIEW_H, VIEW_W } from "./draw";
+import { BOIL_FPS, BOIL_GENTLE, drawScene, speedAt, VIEW_H, VIEW_W } from "./draw";
 import type { Change, Scene } from "./types";
 import { T } from "../../ui/kit";
+import { useProfile } from "../../data/profile";
 
 const INTER = require("@expo-google-fonts/inter/400Regular/Inter_400Regular.ttf");
 
@@ -41,6 +45,12 @@ export function SceneView({
   const clock = useSharedValue(reduce ? 1.2 : 0);
   const v = useSharedValue(value ? value.value : 0);
   const intro = useSharedValue(build ? build.value : reduce ? 1 : 0);
+  const style = useProfile().drawStyle ?? "alive";
+  const hand = style !== "clean";
+  const alive = style === "alive" && !reduce;
+  // The wobble's own clock: a whole number that steps a few times a second.
+  const wobble = useSharedValue(0);
+  const boil = useSharedValue(0);
 
   useFrameCallback((info) => {
     "worklet";
@@ -50,6 +60,11 @@ export function SceneView({
     if (reduce) {
       v.value = target;
       return;
+    }
+    if (alive) {
+      wobble.value += dt;
+      const step = Math.floor(wobble.value * BOIL_FPS) + 1;
+      if (step !== boil.value) boil.value = step;
     }
     v.value += (target - v.value) * Math.min(1, dt * 5);
     if (moving && moving.value < 1) return;
@@ -66,7 +81,7 @@ export function SceneView({
       // This runs on the UI thread, where an error closes the app. A drawing
       // that cannot draw is left blank instead.
       try {
-        drawScene(canvas, scene, changes, { t: t.value, T: clock.value, v: v.value, intro: intro.value, still: reduce, hand: HAND_DRAWN }, font);
+        drawScene(canvas, scene, changes, { t: t.value, T: clock.value, v: v.value, intro: intro.value, still: reduce, hand, boil: alive ? boil.value : 0, amp: BOIL_GENTLE }, font);
       } catch (e) {
         // Nothing drawn this frame. Say why in development, so a blank panel is never a mystery.
         if (__DEV__) console.warn("Scene could not draw:", String(e));

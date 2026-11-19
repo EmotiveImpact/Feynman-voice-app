@@ -21,7 +21,10 @@ export const FAMILIES = [
   "particles", "links", "graph", "balance", "compare", "stairs", "spectrum", "venn", "pair", "tree", "test", "threshold", "units", "crowd",
   "grid", "timeline", "layers", "wave", "mirror", "stack", "radial", "cutaway", "funnel", "sankey", "fan", "spiral", "zoom", "brace", "map", "things",
   "spectra", "pattern", "machine", "case", "forces", "equation", "bridge", "spread", "scatter", "matrix", "geometry", "bonds", "lever", "working",
+  "stage", "quote",
 ] as const;
+export const STAGE_KINDS = ["says", "thinks", "gives", "goes", "against", "with"] as const;
+export const STAGE_SIZES = ["small", "normal", "big"] as const;
 export const MARKS = ["dot", "ring", "blocked"] as const;
 export const MOTIONS = ["still", "drift", "jiggle", "cross", "rise", "fall", "orbit", "pulse", "flow"] as const;
 export const DIVIDERS = ["none", "wall", "membrane", "sieve"] as const;
@@ -60,24 +63,68 @@ export const THING_GROUPS = {
   "People and the body": ["person", "people", "face", "hand", "eye", "brain", "heart", "lungs", "cell", "dna", "virus", "bacterium", "tooth", "bone", "kidney", "stomach", "neuron", "ear", "chromosome", "mitochondrion", "skeleton", "family"],
   "Earth and space": ["sun", "moon", "planet", "earth", "star", "rocket", "cloud", "raindrop", "lightning", "snowflake", "flame", "mountain", "tree", "leaf", "flower", "sprout", "water", "volcano"],
   "Science": ["atom", "molecule", "flask", "magnet", "battery", "bulb", "gear", "thermometer", "pill", "spring", "microscope", "telescope", "magnifier", "prism", "pendulum", "beaker", "circuit", "testtube", "burner", "lens", "pulley", "crystal", "weight", "petri"],
-  "Money and society": ["coin", "banknote", "house", "factory", "building", "crown", "flag", "ballot", "justice", "book", "document", "contract", "pin", "graduation", "speech", "handshake", "shop", "gavel", "prison", "hospital", "school", "handcuffs", "fence", "passport", "placard", "border"],
-  "Technology": ["computer", "phone", "chip", "database", "lock", "key", "envelope", "signal", "robot", "code", "satellite", "camera", "server", "cloudstore", "laptop", "printer", "network", "drone"],
+  "Money and society": ["coin", "banknote", "house", "factory", "building", "crown", "flag", "ballot", "justice", "book", "document", "contract", "pin", "graduation", "speech", "handshake", "shop", "gavel", "prison", "hospital", "school", "handcuffs", "fence", "passport", "placard", "border", "throne", "cannon", "bomb", "tank", "treaty", "tax", "gold", "shopping_bag", "chains"],
+  "Technology": ["computer", "phone", "chip", "database", "lock", "key", "envelope", "signal", "robot", "code", "satellite", "camera", "server", "cloudstore", "laptop", "printer", "network", "drone", "browser", "folder", "bug", "cursor", "mouse", "keyboard", "usb", "router", "password", "apps", "binary", "ai"],
   "Time and ideas": ["clock", "hourglass", "calendar", "target", "trophy", "question", "idea", "puzzle", "shield", "umbrella", "thought", "chain", "hammer", "scales", "mirror"],
   "Transport": ["car", "ship", "plane", "train", "bicycle", "bus", "lorry", "sailboat", "helicopter"],
   "Living things": ["apple", "bird", "fish", "cat", "footprint", "dog", "butterfly", "bee", "frog", "mushroom", "snake", "spider", "whale", "rabbit", "snail"],
   "Metaphors": ["iceberg", "dominoes", "snowball", "ladder", "bridge", "door", "signpost", "anchor", "funnel", "wall", "seesaw", "maze", "path", "seed", "gift", "rope", "key_hole", "balloon", "tug", "crossroads", "hill", "toolbox", "battery_low", "staircase", "bucket", "flagpeak", "glass", "onion", "ripple", "net", "sieve", "spotlight", "tightrope", "thermostat"],
-  "Health and medicine": ["syringe", "stethoscope", "plaster", "medical", "bed", "clipboard", "drip", "wheelchair", "blood", "facemask", "pulse", "ambulance", "baby", "elder"],
+  "Health and medicine": ["syringe", "stethoscope", "plaster", "medical", "bed", "clipboard", "drip", "wheelchair", "blood", "facemask", "pulse", "ambulance", "baby", "elder", "liver", "spine", "muscle", "xray", "crutch", "scalpel"],
   "Energy and environment": ["turbine", "solar", "pylon", "plug", "barrel", "recycle", "tap", "smoke"],
   "Maths and data": ["dice", "card", "ruler", "protractor", "triangle", "cube", "barchart", "linechart", "pie", "abacus", "infinity", "compasses"],
-  "Arts, music and sport": ["note", "piano", "guitar", "headphones", "microphone", "palette", "brush", "frame", "ball", "runner", "dumbbell", "medal", "theatre"],
+  "Arts, music and sport": ["note", "piano", "guitar", "headphones", "microphone", "palette", "brush", "frame", "ball", "runner", "dumbbell", "medal", "theatre", "drum", "violin", "trumpet", "stave", "easel", "vase", "stage", "goal", "racket", "whistle", "stopwatch", "chess"],
   "History and places": ["castle", "sword", "scroll", "pyramid", "helmet", "candle", "globe", "map", "compass", "quill", "wheel", "tent"],
-  "Food and farming": ["bread", "carrot", "wheat", "cow", "cup", "egg", "tractor"],
+  "Food and farming": ["bread", "carrot", "wheat", "cow", "cup", "egg", "tractor", "milk", "cheese", "banana", "bowl", "pot", "meat", "cake", "salt"],
   "Business and work": ["briefcase", "cart", "pricetag", "creditcard", "bank", "piggybank", "safe", "calculator", "receipt", "parcel", "crane", "conveyor"],
   "Language and media": ["alphabet", "quote", "dictionary", "newspaper", "megaphone", "tv", "radio", "pencil", "blackboard", "film", "podium", "translate"],
-  "Places and buildings": ["river", "island", "cactus", "city", "arch", "column", "dome", "lighthouse", "road", "dam", "windmill", "coast"],
+  "Places and buildings": ["river", "island", "cactus", "city", "arch", "column", "dome", "lighthouse", "road", "dam", "windmill", "coast", "church", "mosque", "temple", "pagoda", "palace", "parliament", "courthouse", "skyscraper", "flats", "cottage", "hut", "igloo", "barn", "market_stall", "station", "port", "mine", "well", "gate", "ruins", "statue", "monument", "colosseum", "tomb", "village", "street", "stadium", "library", "museum", "office", "warehouse", "power_station", "greenhouse", "tunnel", "forest", "desert", "waterfall", "cave", "cliff", "lake", "valley", "glacier", "beach", "farm_field", "tornado", "rainbow", "earthquake"],
+  "People in action": ["person_waving", "person_pointing", "person_presenting", "person_thinking", "person_idea", "person_shrugging", "person_cheering", "person_sad", "person_angry", "person_worried", "person_surprised", "person_proud", "person_refusing", "person_running", "person_walking", "person_sitting", "person_kneeling", "person_climbing", "person_pushing", "person_pulling", "person_carrying", "person_lifting", "person_falling", "person_sleeping", "person_reading", "person_writing", "person_shouting", "person_listening", "person_bowing", "person_praying", "person_dancing", "person_kicking", "person_throwing", "person_jumping", "person_digging", "person_saluting", "person_asking", "person_giving", "person_voting", "person_protesting", "person_at_computer", "person_shopping", "person_hiding", "person_winning", "person_losing"],
+  "People together": ["people_talking", "people_arguing", "people_agreeing", "people_teaching", "people_helping", "people_hugging", "people_trading", "people_fighting", "parent_and_child", "people_chasing", "people_interview", "master_and_servant", "leader_and_followers", "queue", "team", "meeting", "audience", "march", "crowd_and_one", "generations"],
+  "Roles and jobs": ["monarch", "soldier", "knight", "judge", "doctor", "nurse", "teacher", "student", "farmer", "builder", "scientist", "artist", "merchant", "monk", "police", "chef", "athlete", "explorer", "detective", "musician", "writer", "politician", "worker", "pilgrim", "sailor", "child"],
+  "Home and everyday": ["chair", "table", "window", "lamp", "sofa", "bottle", "plate", "cutlery", "pan", "bag", "shoe", "hat", "shirt", "dress", "glasses", "watch", "scissors", "broom", "box", "basket", "fridge", "oven", "washing_machine", "bath", "bin", "bench", "streetlamp", "traffic_light", "teddy", "wallet", "ring", "soap"],
+  "Signs and beliefs": ["tick", "cross_mark", "warning", "no_entry", "plus", "minus", "percent", "arrow_up", "arrow_down", "cycle", "exclamation", "sleep", "christian_cross", "crescent", "star_of_david", "yin_yang", "dharma_wheel", "oil_lamp", "peace", "skull", "ghost", "mask", "angel"],
 } as const;
-export const THING_NAMES = Object.values(THING_GROUPS).flat();
-type ThingName = (typeof THING_GROUPS)[keyof typeof THING_GROUPS][number];
+export const THING_NAMES: readonly string[] = Object.values(THING_GROUPS).flat();
+/** A drawn thing by name, or one built from the kit of parts (see asThing). */
+type ThingName = string;
+
+// The kit of parts. A person is a pose with any feeling, any hat and any thing
+// in its hand; a building is a shell with any thing as its sign. The app holds
+// the parts (kitparts.ts); these are their names, copied over by mirror.py.
+// KIT:start
+export const KIT_POSES: readonly string[] = ["waving", "pointing", "presenting", "thinking", "idea", "shrugging", "cheering", "sad", "angry", "worried", "surprised", "proud", "refusing", "running", "walking", "sitting", "kneeling", "climbing", "pushing", "pulling", "carrying", "lifting", "falling", "reading", "writing", "shouting", "listening", "bowing", "praying", "dancing", "kicking", "throwing", "jumping", "digging", "saluting", "asking", "giving", "voting", "protesting", "at_computer", "shopping", "hiding", "winning", "losing", "stand", "holding"];
+export const KIT_MOODS: readonly string[] = ["happy", "laugh", "sad", "angry", "worried", "surprised", "neutral", "think", "sleep"];
+export const KIT_WEARS: readonly string[] = ["crown", "cap", "hardhat", "mortarboard", "chefhat", "helmet", "widehat", "beret", "wig", "tophat", "hood", "nursecap"];
+export const KIT_SHELLS: readonly string[] = ["block", "house", "hall", "tower", "shop"];
+// KIT:end
+
+/**
+ * Tidies the name of something to draw. A drawn thing passes as it is. A kit
+ * name is checked part by part and rebuilt: person:POSE:MOOD:WEARS:HOLDS or
+ * place:SHELL:SIGN, where an unknown part is dropped, not the whole picture.
+ * Returns "" when it is neither.
+ */
+export function asThing(x: unknown): string {
+  if (typeof x !== "string") return "";
+  const s = x.trim();
+  if (THING_NAMES.includes(s)) return s;
+  const q = s.split(":").map((v) => v.trim().toLowerCase().replace(/\s+/g, "_"));
+  if (q[0] === "person" && q.length > 1) {
+    const holds = THING_NAMES.includes(q[4] ?? "") ? q[4] : "";
+    let pose = (q[1] ?? "").replace(/^person_/, "");
+    if (!KIT_POSES.includes(pose)) pose = "stand";
+    // Something in the hand needs a hand held out.
+    if (holds && pose === "stand") pose = "holding";
+    const mood = KIT_MOODS.includes(q[2] ?? "") ? q[2] : "";
+    const wears = KIT_WEARS.includes(q[3] ?? "") ? q[3] : "";
+    return ["person", pose, mood, wears, holds].join(":").replace(/:+$/, "");
+  }
+  if (q[0] === "place" && KIT_SHELLS.includes(q[1] ?? "")) {
+    const sign = THING_NAMES.includes(q[2] ?? "") ? q[2] : "";
+    return sign ? `place:${q[1]}:${sign}` : `place:${q[1]}`;
+  }
+  return "";
+}
 
 export interface Thing {
   name: string;
@@ -454,7 +501,28 @@ export interface WorkingScene {
   lines: { text: string; note: string }[];
   lit: number;
 }
+/** Who does what to whom, and where: people and things on one ground line, with what happens between them. */
+export interface StageScene {
+  family: "stage";
+  /** A place drawn behind them at the right, or "". */
+  place: string;
+  placeLabel: string;
+  actors: { thing: string; label: string; size: (typeof STAGE_SIZES)[number] }[];
+  /** to -1 is the place. says and thinks ignore to. */
+  acts: { from: number; to: number; kind: (typeof STAGE_KINDS)[number]; label: string }[];
+  lit: number;
+}
+/** The exact words: a short passage with one phrase lit and a note on it. */
+export interface QuoteScene {
+  family: "quote";
+  text: string;
+  phrase: string;
+  note: string;
+  by: string;
+}
 export type Scene =
+  | StageScene
+  | QuoteScene
   | ParticlesScene
   | LinksScene
   | GraphScene
@@ -588,6 +656,8 @@ export const SCENE_SCHEMA = {
     obj({ family: en(["bonds"]), shape: en(BOND_SHAPES), atoms: strs, orders: arr(int), lit: int, name: str }),
     obj({ family: en(["lever"]), load: str, effort: str, pivot: str, at: num }),
     obj({ family: en(["working"]), lines: arr(obj({ text: str, note: str })), lit: int }),
+    obj({ family: en(["stage"]), place: str, placeLabel: str, actors: arr(obj({ thing: str, label: str, size: en(STAGE_SIZES) })), acts: arr(obj({ from: int, to: int, kind: en(STAGE_KINDS), label: str })), lit: int }),
+    obj({ family: en(["quote"]), text: str, phrase: str, note: str, by: str }),
     { type: "null" },
   ],
 } as const;
@@ -612,7 +682,7 @@ const THING_MENU = Object.entries(THING_GROUPS)
 export const SCENE_PROMPT = `Each bite also gets a scene: one small live drawing that makes one point. You do not draw. You pick one device and fill in its slots, and the app draws it in Fenny's style (soft silver lines on near-black, one thing lit, built in a few beats). Use a scene for almost every bite. Use null only when no device fits, and then the picture field is used instead.
 
 How to choose, in this order:
-1. Find the question the idea answers (who or what, how much, where, when, how, why). Who or what: things (show the real object, person or place), geometry or bonds. How much: compare, spectrum, graph, units, cutaway, funnel, spread, scatter or things with layout scale. When: timeline, links line or stairs. Where: map, grid or layers. How: links, particles, wave, loop, machine, working, lever or things with layout chain or orbit. Why: graph, balance, forces or case. What kind: tree, venn, brace, pair, matrix or bridge. What comes next: pattern. What is it made of: equation or cutaway.
+1. Find the question the idea answers (who or what, who did what to whom, how much, where, when, how, why). Who did what to whom, or what happens between people: stage. Which exact words: quote. Who or what: things (show the real object, person or place), geometry or bonds. How much: compare, spectrum, graph, units, cutaway, funnel, spread, scatter or things with layout scale. When: timeline, links line or stairs. Where: map, grid or layers. How: links, particles, wave, loop, machine, working, lever or things with layout chain or orbit. Why: graph, balance, forces or case. What kind: tree, venn, brace, pair, matrix or bridge. What comes next: pattern. What is it made of: equation or cutaway.
 2. If the idea is "the difference between X and Y", use pair.
 3. If no picture comes to mind, turn the key sentence into a chart: "A and B overlap" is a venn, "more X gives more Y" is a graph.
 4. Check it before you answer. Clear at a glance? Builds left to right in the order it is spoken? Uses a real example the student knows? Simple but never wrong, so a lecturer could not mark it wrong? If any answer is no, simplify or use null.
@@ -638,6 +708,8 @@ Pick the device by the question the idea answers:
 - Where does it fall on two scales at once (a two by two, like urgent and important)? grid.
 - When did things happen, and in what order over time? timeline.
 - What is built on, or inside, what (a protocol stack, the Earth's layers, skin)? layers.
+- Who does what to whom, and where (an event in history, a deal, a conflict, a social situation, a moment in a story or a case)? stage.
+- Which exact words carry the meaning (a line from a text, a legal definition, a sentence in another language)? quote.
 - What repeats as it travels (sound, light, a wave on a rope)? wave.
 - What is the partner or opposite of this (a right and its duty, oxidation and reduction)? mirror.
 - What goes on top, and what comes off first (last in, first out)? stack.
@@ -699,6 +771,11 @@ brace: items 3 to 7 in a row, groups 1 to 3 (label, from and to = the first and 
 map: places 2 to 6 (label, x = 0 west to 1 east, y = 0 south to 1 north, rough real positions, never invented), routes 0 to 6 (from and to place indexes, in the order they happen), lit = index of the lit place. It draws dots and routes only, never coastlines.
 things: drawn objects, people and places from the list below, each with a label (1 to 3 words) and a size. layout row (1 to 5 things side by side: examples of a kind, or one big picture), versus (exactly 2, set against each other), chain (2 to 4, each becoming or causing the next, joined by arrows), orbit (2 or 3: item 1 goes round item 0, and item 2 goes round item 1, like the Sun, Earth and Moon), scale (2 to 4 drawn at their real relative sizes standing on one line; size = a real number in one unit, smallest first), parts (exactly 1 thing drawn big, with parts = 2 to 4 of its named parts, each with a label of 1 to 4 words and at = where that part sits on the drawing: top, bottom, left, right, top left, top right, bottom left, bottom right or centre, each spot once; only when they really are parts of that drawn thing, where the drawing shows them, never labels hung on a symbol like a bulb or a book). size is 1 for other layouts. parts is [] for every layout but parts. lit = index of the lit thing, or for parts the index of the lit part. Only use names from this list; if nothing in it is the thing, use another device:
 ${THING_MENU}
+  People: choose the pose, pair or role that shows what the person is doing, feeling or is (person_thinking, people_trading, judge). Use plain person only when nothing is happening.
+  The kit of parts: when no drawn person or building says it exactly, build one. Anywhere a thing goes you may write a kit name instead.
+    A person is person:POSE:MOOD:WEARS:HOLDS. POSE is one of: ${KIT_POSES.join(", ")}. MOOD is one of: ${KIT_MOODS.join(", ")}. WEARS is one hat that says who they are: ${KIT_WEARS.join(", ")}. HOLDS is any one thing from the list above, drawn small in the hand (use pose holding). Leave a part empty to skip it and drop empty parts from the end: person:refusing:angry:crown is a furious king saying no, person:holding:happy::scroll is someone with a scroll, person:kneeling:sad is a beaten person, person:walking:worried:hood is a refugee on the road.
+    A building is place:SHELL:SIGN. SHELL is one of: ${KIT_SHELLS.join(", ")} (block: a plain public building, house: a home or small school, hall: a grand building with columns, tower: a tall office, shop: a shop front). SIGN is any one thing from the list, drawn on the building to say what it is: place:hall:scales is a court, place:block:pill a pharmacy, place:shop:bread a bakery, place:tower:newspaper a newspaper office, place:block:shield a police station, place:hall:coin a central bank.
+    Keep the same person through a lesson: if the worker is person:stand:neutral:cap in one bite, in the next they are person:refusing:angry:cap or person:cheering:laugh:cap, the same hat in a new pose and feeling, so the learner follows one character through the story.
   A metaphor (iceberg, dominoes, snowball, ladder, bridge and so on) only when the notes use that image or it is the standard teaching image for the idea, never as decoration.
 units: also thing = a thing from the list to count with instead of dots (person for people, coin for money), or "". also and alsoLabel: a second group among the rest, drawn as rings (out of 100 people, 1 is ill and tests positive, lit, and 9 are well but test positive, also); 0 and "" when there is no second group.
 spectra: item = what is placed (1 to 4 words), rows 2 to 4 scales (left and right end labels of 1 or 2 words, at = where the item sits, 0 left to 1 right), lit = index of the row that decides.
@@ -715,6 +792,8 @@ geometry: shape and labels in a fixed order, "" to leave one out. right_triangle
 bonds: shape line (2 to 4 atoms in a row, like O=C=O), bent (exactly 3, the middle one first raised, like water: H, O, H), star (atom 0 in the centre and 2 to 5 round it, like methane), chain (3 to 6 in a zigzag, like a carbon chain) or ring (3 to 6 in a closed ring). atoms = element symbols in drawing order. orders = the bond between each pair in order, 1 single, 2 double, 3 triple (star: centre to each; ring: one more to close it). lit = index of the atom the lesson is about. name = the molecule's name. Only real molecules with their real bonds.
 lever: load, effort and pivot = labels (1 or 2 words), at = where the pivot sits along the beam, 0.2 (close to the load, so the effort is small) to 0.5 (the middle, so the effort equals the load) to 0.6.
 working: lines 2 to 5 in order (text = the line as written, up to 26 characters, like "2x + 3 = 11"; note = what was done to get it, 2 to 5 words, "" for the first), lit = index of the line the lesson is about. Every line must follow from the one before.
+stage: people, things and a place standing on one ground line, with what happens between them. actors = 1 to 3 from the things list (thing, a label of 1 to 3 words, size small, normal or big: big for the powerful or the adult, small for the weak or the child, normal otherwise). place = one thing from the list for where it happens (a building or a landscape), or "", and placeLabel = its name or "". acts = 1 or 2 things that happen: from = an actor index, to = an actor index or -1 for the place, kind says (a speech bubble over from; label = the 1 to 3 words said), thinks (a thought bubble; label = the thought), gives or goes (an arrow from one to the other; label = what is given, or why they go), against (in conflict; label = what over) or with (allied; label = the tie). lit = index of the actor the lesson is about. Choose each person by what they do or who they are: a pose (person_running, person_refusing), a pair or group (people_arguing, march, queue) or a role (monarch, merchant, judge, soldier, farmer). Or build the exact person from the kit (person:pointing:angry:crown) and the exact building (place:hall:scales). People turn to face whoever they act on. Use stage when the idea is an event or a relationship between people, never for an abstract process.
+quote: text = the exact words, up to 20 words (a line from the text studied, a statute or a definition, or a sentence in the language being learned). phrase = the 1 to 5 words inside it that the lesson turns on, copied exactly. note = what that phrase does or means, in 2 to 7 words. by = where it is from in 1 to 4 words ("Macbeth, Act 1"), or "". Only quote words you are sure are exact: from the notes, or a text you know word for word. If unsure of the wording, use another device.
 
 play: at most one bite per lesson (usually the first or second) gets a slider that changes its scene, so the student tries the idea with their own hands. Others get null.
   prompt: an instruction under 8 words, like "Add sugar to the right." low and high: 1 to 3 word slider end labels.
@@ -732,6 +811,7 @@ play: at most one bite per lesson (usually the first or second) gets a slider th
     timeline, layers, mirror, stack, radial, cutaway, funnel, sankey, spiral, zoom, brace and map: step (the light moves through the parts in order).
     things: step (the light moves through the things in order, or through the parts), speed (for orbit: it goes round faster).
     spectra, machine, case, equation, bridge, matrix, bonds and working: step (the light moves through the parts in order). pattern: step (the answer lands in the gap).
+    stage: step (the light moves through the actors in order). quote: no slider.
     forces: grow (the last force listed grows from nothing to its size, and the resultant changes with it). lever: slide (the pivot moves from the load end to the effort end). spread and scatter: grow (the sample grows from a few points to all of them).
 
 caption: one short sentence under 9 words that states the point, ending with a full stop, like "Water follows the sugar."
@@ -797,6 +877,9 @@ Sine, cosine and tangent: {"family":"geometry","shape":"right_triangle","labels"
 Why water is polar: {"family":"bonds","shape":"bent","atoms":["H","O","H"],"orders":[1,1],"lit":1,"name":"Water"}
 Moments: {"family":"lever","load":"Load","effort":"Effort","pivot":"Pivot","at":0.25} play {"prompt":"Move the pivot.","low":"By the load","high":"Past the middle","readouts":["The pivot is close to the load, so a small push lifts it.","The pivot nears the middle, so the push must nearly match the load.","Past the middle, you must push harder than the load itself."],"changes":[{"target":"","does":"slide"}]}
 Solving a linear equation: {"family":"working","lines":[{"text":"2x + 3 = 11","note":""},{"text":"2x = 8","note":"Take 3 from both sides"},{"text":"x = 4","note":"Divide both sides by 2"}],"lit":2}
+The Peasants' Revolt, 1381: {"family":"stage","place":"palace","placeLabel":"London","actors":[{"thing":"march","label":"Rebels","size":"normal"},{"thing":"monarch","label":"Richard II","size":"normal"}],"acts":[{"from":0,"to":1,"kind":"against","label":"The poll tax"}],"lit":0}
+A strike over pay: {"family":"stage","place":"place:block:gear","placeLabel":"The factory","actors":[{"thing":"person:refusing:angry:cap","label":"Workers","size":"normal"},{"thing":"person:holding:worried:tophat:banknote","label":"Owner","size":"normal"}],"acts":[{"from":0,"to":1,"kind":"against","label":"Pay"},{"from":0,"to":0,"kind":"says","label":"No work"}],"lit":0}
+Macbeth's ambition: {"family":"quote","text":"I have no spur to prick the sides of my intent, but only vaulting ambition","phrase":"vaulting ambition","note":"Ambition alone drives him","by":"Macbeth, Act 1"}
 Compound interest: {"family":"graph","x":"Years","y":"Savings","curves":[{"name":"savings","shape":"grow","label":""}],"highlight":"ride"}
 A bank run: {"family":"links","layout":"loop","nodes":["Fear","Withdrawals","Low reserves"],"links":[{"from":0,"to":1,"kind":"cause"},{"from":1,"to":2,"kind":"cause"},{"from":2,"to":0,"kind":"cause"}],"feedback":"reinforcing"}
 A positive test for a rare disease: {"family":"units","lit":1,"label":"ill, test positive","rest":"well, test negative","thing":"","also":9,"alsoLabel":"well, test positive"}
@@ -834,7 +917,6 @@ const oneOf = <T extends string>(v: unknown, list: readonly T[], d: T): T => (li
 const num01 = (x: unknown, d: number, lo = 0, hi = 1) => (Number.isFinite(Number(x)) ? Math.max(lo, Math.min(hi, Number(x))) : d);
 const labels = (x: unknown, max: number, words = 3) => (Array.isArray(x) ? x : []).map((v) => short(v, words)).filter(Boolean).slice(0, max);
 /** Shares as fractions adding to 1, or equal shares if they are missing. */
-const isThing = (x: unknown) => typeof x === "string" && (THING_NAMES as readonly string[]).includes(x);
 const shares = (xs: number[]) => {
   const ok = xs.every((v) => Number.isFinite(v) && v > 0);
   const total = ok ? xs.reduce((a, b) => a + b, 0) : 0;
@@ -886,6 +968,8 @@ const ALLOWED: Record<Scene["family"], readonly Play["changes"][number]["does"][
   bonds: ["step"],
   lever: ["slide"],
   working: ["step"],
+  stage: ["step"],
+  quote: [],
 };
 /** Families whose slider changes name a thing in the scene. All others use "". */
 const NAMED_TARGETS: readonly string[] = ["particles", "graph", "balance", "compare"];
@@ -1035,7 +1119,7 @@ export function checkScene(s: unknown): Scene | null {
       const lit = clampInt(r.lit, 1, 99, 10);
       const alsoLabel = short(r.alsoLabel, 4, 26);
       const also = alsoLabel ? clampInt(r.also, 0, 99 - lit, 0) : 0;
-      return { family: "units", lit, label, rest: short(r.rest, 4, 26), thing: isThing(r.thing) ? (r.thing as string) : "", also, alsoLabel: also ? alsoLabel : "" };
+      return { family: "units", lit, label, rest: short(r.rest, 4, 26), thing: asThing(r.thing), also, alsoLabel: also ? alsoLabel : "" };
     }
     if (r.family === "crowd") {
       const lit = short(r.lit, 2);
@@ -1168,9 +1252,9 @@ export function checkScene(s: unknown): Scene | null {
       const layout = oneOf(r.layout, THING_LAYOUTS, "row");
       const max = { row: 5, versus: 2, chain: 4, orbit: 3, scale: 4, parts: 1 }[layout];
       let items = (Array.isArray(r.items) ? r.items : [])
-        .filter((t: Record<string, unknown>) => t && isThing(t.thing))
+        .filter((t: Record<string, unknown>) => t && asThing(t.thing))
         .slice(0, max)
-        .map((t: Record<string, unknown>) => ({ thing: t.thing as ThingName, label: short(t.label, layout === "row" || layout === "scale" ? 4 : 3, 26), size: Number(t.size) > 0 ? Number(t.size) : 1 }));
+        .map((t: Record<string, unknown>) => ({ thing: asThing(t.thing), label: short(t.label, layout === "row" || layout === "scale" ? 4 : 3, 26), size: Number(t.size) > 0 ? Number(t.size) : 1 }));
       const min = layout === "row" || layout === "parts" ? 1 : 2;
       if (items.length < min) return null;
       if (layout === "scale") {
@@ -1297,6 +1381,42 @@ export function checkScene(s: unknown): Scene | null {
     }
     if (r.family === "lever") {
       return { family: "lever", load: short(r.load, 2, 14) || "Load", effort: short(r.effort, 2, 14) || "Effort", pivot: short(r.pivot, 2, 14) || "Pivot", at: num01(r.at, 0.3, 0.2, 0.6) };
+    }
+    if (r.family === "stage") {
+      const actors = (Array.isArray(r.actors) ? r.actors : [])
+        .filter((t: Record<string, unknown>) => t && asThing(t.thing))
+        .slice(0, 3)
+        .map((t: Record<string, unknown>) => ({ thing: asThing(t.thing), label: short(t.label, 3, 22), size: oneOf(t.size, STAGE_SIZES, "normal") }));
+      if (!actors.length) return null;
+      const place = asThing(r.place);
+      const n = actors.length;
+      const bubble = (k: string) => k === "says" || k === "thinks";
+      const spoke = new Set<number>();
+      const acts = (Array.isArray(r.acts) ? r.acts : [])
+        .map((x: Record<string, unknown>) => ({ from: clampInt(x?.from, 0, n - 1, 0), to: Number(x?.to) < 0 ? -1 : clampInt(x?.to, 0, n - 1, 0), kind: oneOf(x?.kind, STAGE_KINDS, "says"), label: short(x?.label, 3, 20) }))
+        // A bubble needs words; an arrow needs two different ends, and the place only if there is one.
+        .filter((a) => (bubble(a.kind) ? !!a.label : a.to !== a.from && (a.to >= 0 || !!place)))
+        // One bubble per actor.
+        .filter((a) => (bubble(a.kind) ? !spoke.has(a.from) && !!spoke.add(a.from) : true))
+        .slice(0, 2);
+      // Something has to happen: one actor alone with nothing said is a things row, not a stage.
+      if (n + (place ? 1 : 0) < 2 && !acts.length) return null;
+      return { family: "stage", place, placeLabel: place ? short(r.placeLabel, 3, 22) : "", actors, acts, lit: clampInt(r.lit, 0, n - 1, 0) };
+    }
+    if (r.family === "quote") {
+      const tidy = (v: unknown) => String(v ?? "").replace(/\s+/g, " ").trim().replace(/^["“”']+|["“”']+$/g, "");
+      const text = tidy(r.text);
+      const phrase = tidy(r.phrase);
+      const words = text.split(" ");
+      if (!text || text.length > 124 || words.length > 22) return null;
+      const bare = (t: string) => t.toLowerCase().replace(/[.,;:!?"'“”‘’()[\]…]/g, "");
+      const tw = words.map(bare);
+      const pw = phrase.split(" ").map(bare).filter(Boolean);
+      // The lit phrase must be whole words of the passage, in order. No phrase, no picture.
+      let found = false;
+      for (let i = 0; i + pw.length <= tw.length && !found; i++) found = pw.every((w, j) => tw[i + j] === w);
+      if (!pw.length || pw.length > 6 || !found) return null;
+      return { family: "quote", text, phrase: phrase.split(" ").filter((w) => bare(w)).join(" "), note: short(r.note, 7, 46), by: short(r.by, 5, 30) };
     }
     if (r.family === "working") {
       const lines = (Array.isArray(r.lines) ? r.lines : [])

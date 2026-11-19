@@ -1,6 +1,6 @@
 // The drawn scenes a lesson can send, mirrored from apps/api/src/scene.ts.
 // The server has already checked them, so the app can trust the shapes here.
-import { THINGS } from "./things";
+import { hasThing } from "./kit";
 
 export type Mark = "dot" | "ring" | "blocked";
 export type Motion = "still" | "drift" | "jiggle" | "cross" | "rise" | "fall" | "orbit" | "pulse" | "flow";
@@ -459,19 +459,43 @@ export type Scene =
   | GeometryScene
   | BondsScene
   | LeverScene
-  | WorkingScene;
+  | WorkingScene
+  | StageScene
+  | QuoteScene;
+
+/** Who does what to whom, and where: people and things on one ground line, with what happens between them. */
+export interface StageScene {
+  family: "stage";
+  /** A place drawn behind them at the right, or "". */
+  place: string;
+  placeLabel: string;
+  actors: { thing: string; label: string; size: "small" | "normal" | "big" }[];
+  /** to -1 is the place. says and thinks ignore to. */
+  acts: { from: number; to: number; kind: "says" | "thinks" | "gives" | "goes" | "against" | "with"; label: string }[];
+  lit: number;
+}
+/** The exact words: a short passage with one phrase lit and a note on it. */
+export interface QuoteScene {
+  family: "quote";
+  text: string;
+  phrase: string;
+  note: string;
+  by: string;
+}
 
 /** The families this build of the app can draw. A newer server may send others: those fall back to the simple diagram. */
 export const DRAWABLE: readonly string[] = [
   "particles", "links", "graph", "balance", "compare", "stairs", "spectrum", "venn", "pair", "tree", "test", "threshold", "units", "crowd",
   "grid", "timeline", "layers", "wave", "mirror", "stack", "radial", "cutaway", "funnel", "sankey", "fan", "spiral", "zoom", "brace", "map", "things",
   "spectra", "pattern", "machine", "case", "forces", "equation", "bridge", "spread", "scatter", "matrix", "geometry", "bonds", "lever", "working",
+  "stage", "quote",
 ];
 
 /** True when this build can draw the scene: a known family, and every thing in it known. */
 export function canDraw(scene: Scene | null | undefined): scene is Scene {
   if (!scene || !DRAWABLE.includes(scene.family)) return false;
-  if (scene.family === "things") return scene.items.every((t) => !!THINGS[t.thing]);
+  if (scene.family === "things") return scene.items.every((t) => hasThing(t.thing));
+  if (scene.family === "stage") return scene.actors.every((t) => hasThing(t.thing)) && (!scene.place || hasThing(scene.place));
   return true;
 }
 
