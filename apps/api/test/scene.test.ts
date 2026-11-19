@@ -78,7 +78,7 @@ describe("the newer devices", () => {
   });
   it("checks a pair: two small pictures side by side, one lit", () => {
     const p = checkScene({ family: "pair", left: { label: "Mitosis", shape: "split", count: 40, note: "2 identical cells" }, right: { label: "Meiosis", shape: "nonsense", count: 4, note: "" }, lit: "middle" });
-    expect(p).toEqual({ family: "pair", left: { label: "Mitosis", shape: "split", count: 8, note: "2 identical cells" }, right: { label: "Meiosis", shape: "path", count: 0, note: "" }, lit: "right" });
+    expect(p).toEqual({ family: "pair", left: { label: "Mitosis", shape: "split", count: 8, note: "2 identical cells", tone: "" }, right: { label: "Meiosis", shape: "path", count: 0, note: "", tone: "" }, lit: "right" });
     expect(checkScene({ family: "pair", left: { label: "", shape: "line", count: 0, note: "" }, right: { label: "B", shape: "curve", count: 0, note: "" }, lit: "left" })).toBeNull();
     expect(checkPlay({ prompt: "p", low: "a", high: "b", readouts: ["a", "b", "c"], changes: [{ target: "Meiosis", does: "step" }] }, p)?.changes[0]).toEqual({ target: "", does: "step" });
     expect(checkPlay({ prompt: "p", low: "a", high: "b", readouts: ["a", "b", "c"], changes: [{ target: "", does: "grow" }] }, p)).toBeNull();

@@ -61,6 +61,9 @@ export const BOIL_FPS = 5;
 const SIL = "#E6E9EE";
 
 const BLUE = "#A9BEE6";
+/** Colour for meaning: the only two colours besides the light, and only ever as a soft wash behind a thing. */
+const GOOD = "#86C8A0";
+const BAD = "#E0907E";
 
 const LAB = "#8A8F98";
 
@@ -875,6 +878,21 @@ function glyph(c: SkCanvas, p: SkPaint, side: PairSide, cx: number, cy: number, 
   }
 }
 
+/**
+ * Colour for meaning: one soft wash behind a thing, green for good and red for
+ * bad. It is never a line colour and never the only sign of anything: the
+ * label and the voice still say what is good or bad.
+ */
+function toneWash(c: SkCanvas, x: number, y: number, r: number, tone: string | undefined, a: number) {
+  "worklet";
+  if ((tone !== "good" && tone !== "bad") || a <= 0.01) return;
+  const hp = Skia.Paint();
+  hp.setColor(Skia.Color(tone === "good" ? GOOD : BAD));
+  hp.setAlphaf(clamp(a) * 0.26);
+  hp.setMaskFilter(Skia.MaskFilter.MakeBlur(0, 13, true));
+  c.drawCircle(x, y, r, hp);
+}
+
 function drawPair(c: SkCanvas, p: SkPaint, font: SkFont | null, s: PairScene, changes: Change[], f: Frame) {
   "worklet";
   const stepping = hasKind(changes, "step");
@@ -889,6 +907,7 @@ function drawPair(c: SkCanvas, p: SkPaint, font: SkFont | null, s: PairScene, ch
     const cx = i === 0 ? 75 : 225;
     const lit = (i === 0 && s.lit === "left") || (i === 1 && s.lit === "right");
     const k = i === 0 ? kL : kR;
+    toneWash(c, cx, cy, 44, side.tone, ease(k * 1.5));
     glyph(c, p, side, cx, cy, lit ? BLUE : SIL, k, lit, f);
     label(c, p, font, side.label, cx, 18, "center", lit ? SIL : LAB, ease(k * 2));
     if (side.note) label(c, p, font, side.note, cx, 150, "center", lit ? BLUE : LAB, beat(f, i === 0 ? 2 : 2.5, 3) * ease(k * 1.5));
@@ -2430,7 +2449,10 @@ function drawThings(c: SkCanvas, p: SkPaint, font: SkFont | null, s: ThingsScene
       const tiny = hs[i] < 7;
       // Too small to draw at this scale: a dot where it stands, so the scale stays honest.
       if (tiny) dot(c, p, cx, BASE - 2.4, 2.4, k, isLit(i) ? BLUE : SIL);
-      else drawThing(c, p, s.items[i].thing, cx, BASE - hs[i] * 1.05, hs[i], 1, isLit(i), k);
+      else {
+        toneWash(c, cx, BASE - hs[i] * 1.05, hs[i] * 1.05, s.items[i].tone, k);
+        drawThing(c, p, s.items[i].thing, cx, BASE - hs[i] * 1.05, hs[i], 1, isLit(i), k, W0, !s.items[i].tone);
+      }
       const name = fitText(font, s.items[i].label, 100);
       const lw = textW(font, name);
       const al = alignAt(cx);
@@ -2452,7 +2474,9 @@ function drawThings(c: SkCanvas, p: SkPaint, font: SkFont | null, s: ThingsScene
   if (s.layout === "versus") line(c, p, 150, 30, 150, 140, 0.3, SIL, beat(f, 1, 3), [3, 6]);
   for (let i = 0; i < n; i++) {
     const k = kOf(i);
-    drawThing(c, p, s.items[i].thing, xs[i], Y, H, 1, isLit(i), k);
+    // A washed thing keeps its blue lines when lit, but the wash stands in for the halo.
+    toneWash(c, xs[i], Y, H * 1.05, s.items[i].tone, k);
+    drawThing(c, p, s.items[i].thing, xs[i], Y, H, 1, isLit(i), k, W0, !s.items[i].tone);
     label2(c, p, font, s.items[i].label, xs[i], Y + H + 18, n === 1 ? "center" : alignAt(xs[i]), isLit(i) ? SIL : LAB, k, n === 1 ? 260 : s.layout === "versus" ? 124 : pitch - 8);
     if (s.layout === "chain" && i < n - 1) {
       const x1 = xs[i] + H + 8;
@@ -3260,6 +3284,7 @@ function drawStage(c: SkCanvas, p: SkPaint, font: SkFont | null, s: StageScene, 
   line(c, p, 14, GY, 286, GY, 0.35, SIL, beat(f, 0, 3));
   if (s.place) {
     const k = beat(f, 0.3, 3);
+    toneWash(c, xs[n], GY - PH * 0.95, PH * 1.05, s.placeTone, k);
     drawThing(c, p, s.place, xs[n], GY - PH * 0.95, PH, 0.62, false, k);
     label2(c, p, font, s.placeLabel, xs[n], GY + 12, alignAt(xs[n]), LAB, k, pitch - 8);
   }
@@ -3277,7 +3302,8 @@ function drawStage(c: SkCanvas, p: SkPaint, font: SkFont | null, s: StageScene, 
   for (let i = 0; i < n; i++) {
     const k = beat(f, 0.5 + (i / Math.max(1, n)) * 1.3, 3);
     const lit = i === litI && kL > 0.5;
-    drawThing(c, p, s.actors[i].thing, xs[i], GY - hs[i] * 0.95, hs[i], 1, lit, k, W0, true, isPerson(s.actors[i].thing) ? turn[i] : 1);
+    toneWash(c, xs[i], GY - hs[i] * 0.95, hs[i] * 1.05, s.actors[i].tone, k);
+    drawThing(c, p, s.actors[i].thing, xs[i], GY - hs[i] * 0.95, hs[i], 1, lit, k, W0, !s.actors[i].tone, isPerson(s.actors[i].thing) ? turn[i] : 1);
     label2(c, p, font, s.actors[i].label, xs[i], GY + 12, alignAt(xs[i]), lit ? SIL : LAB, k, pitch - 8);
   }
   // Which way each actor's arrow leaves or arrives, and who has a bubble: a bubble keeps to the other side.

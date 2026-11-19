@@ -88,6 +88,10 @@ export const THING_NAMES: readonly string[] = Object.values(THING_GROUPS).flat()
 /** A drawn thing by name, or one built from the kit of parts (see asThing). */
 type ThingName = string;
 
+/** Colour for meaning: one soft wash behind a thing. Green for good, red for bad, nothing otherwise. */
+export const TONES = ["", "good", "bad"] as const;
+export type Tone = (typeof TONES)[number];
+
 // The kit of parts. A person is a pose with any feeling, any hat and any thing
 // in its hand; a building is a shell with any thing as its sign. The app holds
 // the parts (kitparts.ts); these are their names, copied over by mirror.py.
@@ -202,6 +206,8 @@ export interface PairSide {
   count: number;
   /** A word or two under the picture, or "". */
   note: string;
+  /** A soft wash of colour behind this side: good, bad or "". */
+  tone: Tone;
 }
 export interface PairScene {
   family: "pair";
@@ -381,7 +387,7 @@ export interface MapScene {
 export interface ThingsScene {
   family: "things";
   layout: (typeof THING_LAYOUTS)[number];
-  items: { thing: ThingName; label: string; size: number }[];
+  items: { thing: ThingName; label: string; size: number; tone: Tone }[];
   /** The parts layout only: 2 to 4 named parts, each pointed at where it sits. Empty otherwise. */
   parts: { label: string; at: (typeof PART_SPOTS)[number] }[];
   lit: number;
@@ -507,7 +513,9 @@ export interface StageScene {
   /** A place drawn behind them at the right, or "". */
   place: string;
   placeLabel: string;
-  actors: { thing: string; label: string; size: (typeof STAGE_SIZES)[number] }[];
+  /** A soft wash of colour behind the place: good, bad or "". */
+  placeTone: Tone;
+  actors: { thing: string; label: string; size: (typeof STAGE_SIZES)[number]; tone: Tone }[];
   /** to -1 is the place. says and thinks ignore to. */
   acts: { from: number; to: number; kind: (typeof STAGE_KINDS)[number]; label: string }[];
   lit: number;
@@ -617,8 +625,8 @@ export const SCENE_SCHEMA = {
     obj({ family: en(["venn"]), a: str, b: str, both: str, overlap: num }),
     obj({
       family: en(["pair"]),
-      left: obj({ label: str, shape: en(PAIR_SHAPES), count: int, note: str }),
-      right: obj({ label: str, shape: en(PAIR_SHAPES), count: int, note: str }),
+      left: obj({ label: str, shape: en(PAIR_SHAPES), count: int, note: str, tone: en(TONES) }),
+      right: obj({ label: str, shape: en(PAIR_SHAPES), count: int, note: str, tone: en(TONES) }),
       lit: en(["left", "right"]),
     }),
     obj({ family: en(["tree"]), root: str, branches: { type: "array", items: obj({ label: str, leaves: strs }) }, lit: obj({ branch: int, leaf: int }) }),
@@ -641,7 +649,7 @@ export const SCENE_SCHEMA = {
     obj({ family: en(["zoom"]), levels: arr(obj({ label: str, size: str })), at: int }),
     obj({ family: en(["brace"]), items: strs, groups: arr(obj({ label: str, from: int, to: int })), lit: int }),
     obj({ family: en(["map"]), places: arr(obj({ label: str, x: num, y: num })), routes: arr(obj({ from: int, to: int })), lit: int }),
-    obj({ family: en(["things"]), layout: en(THING_LAYOUTS), items: arr(obj({ thing: str, label: str, size: num })), parts: arr(obj({ label: str, at: en(PART_SPOTS) })), lit: int }),
+    obj({ family: en(["things"]), layout: en(THING_LAYOUTS), items: arr(obj({ thing: str, label: str, size: num, tone: en(TONES) })), parts: arr(obj({ label: str, at: en(PART_SPOTS) })), lit: int }),
     obj({ family: en(["spectra"]), item: str, rows: arr(obj({ left: str, right: str, at: num })), lit: int }),
     obj({ family: en(["pattern"]), items: strs, gap: int, answer: str, rule: str }),
     obj({ family: en(["machine"]), name: str, inputs: strs, outputs: strs, lit: int }),
@@ -656,7 +664,7 @@ export const SCENE_SCHEMA = {
     obj({ family: en(["bonds"]), shape: en(BOND_SHAPES), atoms: strs, orders: arr(int), lit: int, name: str }),
     obj({ family: en(["lever"]), load: str, effort: str, pivot: str, at: num }),
     obj({ family: en(["working"]), lines: arr(obj({ text: str, note: str })), lit: int }),
-    obj({ family: en(["stage"]), place: str, placeLabel: str, actors: arr(obj({ thing: str, label: str, size: en(STAGE_SIZES) })), acts: arr(obj({ from: int, to: int, kind: en(STAGE_KINDS), label: str })), lit: int }),
+    obj({ family: en(["stage"]), place: str, placeLabel: str, placeTone: en(TONES), actors: arr(obj({ thing: str, label: str, size: en(STAGE_SIZES), tone: en(TONES) })), acts: arr(obj({ from: int, to: int, kind: en(STAGE_KINDS), label: str })), lit: int }),
     obj({ family: en(["quote"]), text: str, phrase: str, note: str, by: str }),
     { type: "null" },
   ],
@@ -795,6 +803,8 @@ working: lines 2 to 5 in order (text = the line as written, up to 26 characters,
 stage: people, things and a place standing on one ground line, with what happens between them. actors = 1 to 3 from the things list (thing, a label of 1 to 3 words, size small, normal or big: big for the powerful or the adult, small for the weak or the child, normal otherwise). place = one thing from the list for where it happens (a building or a landscape), or "", and placeLabel = its name or "". acts = 1 or 2 things that happen: from = an actor index, to = an actor index or -1 for the place, kind says (a speech bubble over from; label = the 1 to 3 words said), thinks (a thought bubble; label = the thought), gives or goes (an arrow from one to the other; label = what is given, or why they go), against (in conflict; label = what over) or with (allied; label = the tie). lit = index of the actor the lesson is about. Choose each person by what they do or who they are: a pose (person_running, person_refusing), a pair or group (people_arguing, march, queue) or a role (monarch, merchant, judge, soldier, farmer). Or build the exact person from the kit (person:pointing:angry:crown) and the exact building (place:hall:scales). People turn to face whoever they act on. Use stage when the idea is an event or a relationship between people, never for an abstract process.
 quote: text = the exact words, up to 20 words (a line from the text studied, a statute or a definition, or a sentence in the language being learned). phrase = the 1 to 5 words inside it that the lesson turns on, copied exactly. note = what that phrase does or means, in 2 to 7 words. by = where it is from in 1 to 4 words ("Macbeth, Act 1"), or "". Only quote words you are sure are exact: from the notes, or a text you know word for word. If unsure of the wording, use another device.
 
+tone (on each side of a pair, each item of things, each actor of a stage, and placeTone for a stage's place): colour for meaning, one soft wash behind that thing. "good" is green, "bad" is red, "" is none, and "" is right almost every time. Use a tone only when the idea itself sets something good against something bad (a healthy cell and a cancer cell, a fair deal and a scam), or when one thing in the picture is plainly a harm or a gain (the shop where prices rose, the buyer who gets the deal). Never to decorate, never for "important" (the light does that), never on both sides the same, never for a matter of opinion (a political side, a religion, a people), and at most two in a picture.
+
 play: at most one bite per lesson (usually the first or second) gets a slider that changes its scene, so the student tries the idea with their own hands. Others get null.
   prompt: an instruction under 8 words, like "Add sugar to the right." low and high: 1 to 3 word slider end labels.
   readouts: exactly 3 short lines for the low end, the middle and the high end. Each says what they see and why, under 16 words.
@@ -840,7 +850,7 @@ pH: {"family":"spectrum","left":"Acid","right":"Alkaline","min":0,"max":14,"mark
 Probability of A and B: {"family":"venn","a":"Rain","b":"Wind","both":"Both","overlap":0.4}
 Km: {"family":"graph","x":"Substrate","y":"Rate","curves":[{"name":"rate","shape":"saturate","label":""}],"highlight":"half"}
 Civil burden of proof: {"family":"balance","left":"Defendant","right":"Claimant","leftWeight":3,"rightWeight":4,"middle":"51%"}
-Mitosis and meiosis: {"family":"pair","left":{"label":"Mitosis","shape":"split","count":2,"note":"2 identical cells"},"right":{"label":"Meiosis","shape":"split","count":4,"note":"4 different cells"},"lit":"right"}
+Mitosis and meiosis: {"family":"pair","left":{"label":"Mitosis","shape":"split","count":2,"note":"2 identical cells","tone":""},"right":{"label":"Meiosis","shape":"split","count":4,"note":"4 different cells","tone":""},"lit":"right"}
 Kinds of animal: {"family":"tree","root":"Animals","branches":[{"label":"Vertebrates","leaves":["Mammals","Birds","Fish"]},{"label":"Invertebrates","leaves":["Insects","Molluscs"]}],"lit":{"branch":0,"leaf":0}}
 Duty of care (Caparo): {"family":"test","case":"Claim","gates":["Foreseeable","Proximity","Fair"],"fails":2,"outcome":"No duty"}
 Action potential: {"family":"threshold","level":"Voltage","line":"Threshold","at":0.6,"value":0.85}
@@ -856,12 +866,13 @@ Composition of air: {"family":"cutaway","whole":"Air","parts":[{"label":"Nitroge
 Power station: {"family":"sankey","source":"Fuel energy","splits":[{"label":"Electricity","share":35},{"label":"Heat lost","share":65}],"lit":0}
 Levels of organisation: {"family":"zoom","levels":[{"label":"Body","size":"1.7 m"},{"label":"Heart","size":"12 cm"},{"label":"Muscle cell","size":"100 µm"}],"at":2}
 Triangular trade: {"family":"map","places":[{"label":"Britain","x":0.55,"y":0.85},{"label":"West Africa","x":0.6,"y":0.4},{"label":"Caribbean","x":0.1,"y":0.5}],"routes":[{"from":0,"to":1},{"from":1,"to":2},{"from":2,"to":0}],"lit":1}
-Earth and Moon: {"family":"things","layout":"orbit","items":[{"thing":"sun","label":"Sun","size":1},{"thing":"earth","label":"Earth","size":1},{"thing":"moon","label":"Moon","size":1}],"parts":[],"lit":2}
-Growth from a seed: {"family":"things","layout":"chain","items":[{"thing":"seed","label":"Seed","size":1},{"thing":"sprout","label":"Seedling","size":1},{"thing":"tree","label":"Tree","size":1}],"parts":[],"lit":2}
-Climbing Everest: {"family":"things","layout":"scale","items":[{"thing":"person","label":"Climber, 1.8 m","size":1.8},{"thing":"house","label":"House, 8 m","size":8},{"thing":"mountain","label":"Everest, 8,849 m","size":8849}],"parts":[],"lit":0}
-Visible and hidden costs: {"family":"things","layout":"row","items":[{"thing":"iceberg","label":"Most costs are hidden","size":1}],"parts":[],"lit":0}
-Viruses and bacteria: {"family":"things","layout":"versus","items":[{"thing":"virus","label":"Virus","size":1},{"thing":"bacterium","label":"Bacterium","size":1}],"parts":[],"lit":0}
-The iceberg model of culture: {"family":"things","layout":"parts","items":[{"thing":"iceberg","label":"Culture","size":1}],"parts":[{"label":"Food and dress","at":"top"},{"label":"Values and beliefs","at":"bottom"}],"lit":1}
+Earth and Moon: {"family":"things","layout":"orbit","items":[{"thing":"sun","label":"Sun","size":1,"tone":""},{"thing":"earth","label":"Earth","size":1,"tone":""},{"thing":"moon","label":"Moon","size":1,"tone":""}],"parts":[],"lit":2}
+Growth from a seed: {"family":"things","layout":"chain","items":[{"thing":"seed","label":"Seed","size":1,"tone":""},{"thing":"sprout","label":"Seedling","size":1,"tone":""},{"thing":"tree","label":"Tree","size":1,"tone":""}],"parts":[],"lit":2}
+Climbing Everest: {"family":"things","layout":"scale","items":[{"thing":"person","label":"Climber, 1.8 m","size":1.8,"tone":""},{"thing":"house","label":"House, 8 m","size":8,"tone":""},{"thing":"mountain","label":"Everest, 8,849 m","size":8849,"tone":""}],"parts":[],"lit":0}
+Visible and hidden costs: {"family":"things","layout":"row","items":[{"thing":"iceberg","label":"Most costs are hidden","size":1,"tone":""}],"parts":[],"lit":0}
+Viruses and bacteria: {"family":"things","layout":"versus","items":[{"thing":"virus","label":"Virus","size":1,"tone":""},{"thing":"bacterium","label":"Bacterium","size":1,"tone":""}],"parts":[],"lit":0}
+A healthy cell and a cancer cell: {"family":"things","layout":"versus","items":[{"thing":"cell","label":"Healthy cell","size":1,"tone":"good"},{"thing":"cell","label":"Cancer cell","size":1,"tone":"bad"}],"parts":[],"lit":1}
+The iceberg model of culture: {"family":"things","layout":"parts","items":[{"thing":"iceberg","label":"Culture","size":1,"tone":""}],"parts":[{"label":"Food and dress","at":"top"},{"label":"Values and beliefs","at":"bottom"}],"lit":1}
 Interviews as a research method: {"family":"spectra","item":"Interviews","rows":[{"left":"Shallow","right":"Deep","at":0.9},{"left":"Cheap","right":"Costly","at":0.7},{"left":"Few people","right":"Many people","at":0.15}],"lit":0}
 Radioactive decay: {"family":"pattern","items":["80","40","20","?","5"],"gap":3,"answer":"10","rule":"Halves each half-life"}
 Photosynthesis: {"family":"machine","name":"Chloroplast","inputs":["Light","Water","Carbon dioxide"],"outputs":["Glucose","Oxygen"],"lit":0}
@@ -877,13 +888,13 @@ Sine, cosine and tangent: {"family":"geometry","shape":"right_triangle","labels"
 Why water is polar: {"family":"bonds","shape":"bent","atoms":["H","O","H"],"orders":[1,1],"lit":1,"name":"Water"}
 Moments: {"family":"lever","load":"Load","effort":"Effort","pivot":"Pivot","at":0.25} play {"prompt":"Move the pivot.","low":"By the load","high":"Past the middle","readouts":["The pivot is close to the load, so a small push lifts it.","The pivot nears the middle, so the push must nearly match the load.","Past the middle, you must push harder than the load itself."],"changes":[{"target":"","does":"slide"}]}
 Solving a linear equation: {"family":"working","lines":[{"text":"2x + 3 = 11","note":""},{"text":"2x = 8","note":"Take 3 from both sides"},{"text":"x = 4","note":"Divide both sides by 2"}],"lit":2}
-The Peasants' Revolt, 1381: {"family":"stage","place":"palace","placeLabel":"London","actors":[{"thing":"march","label":"Rebels","size":"normal"},{"thing":"monarch","label":"Richard II","size":"normal"}],"acts":[{"from":0,"to":1,"kind":"against","label":"The poll tax"}],"lit":0}
-A strike over pay: {"family":"stage","place":"place:block:gear","placeLabel":"The factory","actors":[{"thing":"person:refusing:angry:cap","label":"Workers","size":"normal"},{"thing":"person:holding:worried:tophat:banknote","label":"Owner","size":"normal"}],"acts":[{"from":0,"to":1,"kind":"against","label":"Pay"},{"from":0,"to":0,"kind":"says","label":"No work"}],"lit":0}
+The Peasants' Revolt, 1381: {"family":"stage","place":"palace","placeLabel":"London","placeTone":"","actors":[{"thing":"march","label":"Rebels","size":"normal","tone":""},{"thing":"monarch","label":"Richard II","size":"normal","tone":""}],"acts":[{"from":0,"to":1,"kind":"against","label":"The poll tax"}],"lit":0}
+A strike over pay: {"family":"stage","place":"place:block:gear","placeLabel":"The factory","placeTone":"","actors":[{"thing":"person:refusing:angry:cap","label":"Workers","size":"normal","tone":""},{"thing":"person:holding:worried:tophat:banknote","label":"Owner","size":"normal","tone":""}],"acts":[{"from":0,"to":1,"kind":"against","label":"Pay"},{"from":0,"to":0,"kind":"says","label":"No work"}],"lit":0}
 Macbeth's ambition: {"family":"quote","text":"I have no spur to prick the sides of my intent, but only vaulting ambition","phrase":"vaulting ambition","note":"Ambition alone drives him","by":"Macbeth, Act 1"}
 Compound interest: {"family":"graph","x":"Years","y":"Savings","curves":[{"name":"savings","shape":"grow","label":""}],"highlight":"ride"}
 A bank run: {"family":"links","layout":"loop","nodes":["Fear","Withdrawals","Low reserves"],"links":[{"from":0,"to":1,"kind":"cause"},{"from":1,"to":2,"kind":"cause"},{"from":2,"to":0,"kind":"cause"}],"feedback":"reinforcing"}
 A positive test for a rare disease: {"family":"units","lit":1,"label":"ill, test positive","rest":"well, test negative","thing":"","also":9,"alsoLabel":"well, test positive"}
-Weather and climate: {"family":"pair","left":{"label":"Weather","shape":"jagged","count":0,"note":"Day to day"},"right":{"label":"Climate","shape":"smooth","count":0,"note":"Over 30 years"},"lit":"right"}`;
+Weather and climate: {"family":"pair","left":{"label":"Weather","shape":"jagged","count":0,"note":"Day to day","tone":""},"right":{"label":"Climate","shape":"smooth","count":0,"note":"Over 30 years","tone":""},"lit":"right"}`;
 
 // ---- checking ----
 
@@ -1080,11 +1091,13 @@ export function checkScene(s: unknown): Scene | null {
         if (!label) return null;
         const shape = oneOf(o.shape, PAIR_SHAPES, "path");
         const counted = shape === "split" || shape === "join" || shape === "many";
-        return { label, shape, count: counted ? clampInt(o.count, 2, 8, shape === "many" ? 8 : 2) : 0, note: short(o.note, 4, 26) };
+        return { label, shape, count: counted ? clampInt(o.count, 2, 8, shape === "many" ? 8 : 2) : 0, note: short(o.note, 4, 26), tone: oneOf(o.tone, TONES, "") };
       };
       const left = side(r.left);
       const right = side(r.right);
       if (!left || !right) return null;
+      // Two sides washed the same colour say nothing: colour is for good against bad.
+      if (left.tone && left.tone === right.tone) left.tone = right.tone = "";
       return { family: "pair", left, right, lit: r.lit === "left" ? "left" : "right" };
     }
     if (r.family === "tree") {
@@ -1254,7 +1267,12 @@ export function checkScene(s: unknown): Scene | null {
       let items = (Array.isArray(r.items) ? r.items : [])
         .filter((t: Record<string, unknown>) => t && asThing(t.thing))
         .slice(0, max)
-        .map((t: Record<string, unknown>) => ({ thing: asThing(t.thing), label: short(t.label, layout === "row" || layout === "scale" ? 4 : 3, 26), size: Number(t.size) > 0 ? Number(t.size) : 1 }));
+        .map((t: Record<string, unknown>) => ({ thing: asThing(t.thing), label: short(t.label, layout === "row" || layout === "scale" ? 4 : 3, 26), size: Number(t.size) > 0 ? Number(t.size) : 1, tone: oneOf(t.tone, TONES, "") }));
+      // Colour is for good against bad: no wash on a lone thing, in an orbit or on a labelled diagram,
+      // never the same colour on everything, and at most two in a picture.
+      const toned = items.filter((t) => t.tone);
+      if (items.length < 2 || layout === "orbit" || layout === "parts" || toned.length > 2 || (toned.length === items.length && toned.every((t) => t.tone === toned[0].tone)))
+        items = items.map((t) => ({ ...t, tone: "" as Tone }));
       const min = layout === "row" || layout === "parts" ? 1 : 2;
       if (items.length < min) return null;
       if (layout === "scale") {
@@ -1386,7 +1404,7 @@ export function checkScene(s: unknown): Scene | null {
       const actors = (Array.isArray(r.actors) ? r.actors : [])
         .filter((t: Record<string, unknown>) => t && asThing(t.thing))
         .slice(0, 3)
-        .map((t: Record<string, unknown>) => ({ thing: asThing(t.thing), label: short(t.label, 3, 22), size: oneOf(t.size, STAGE_SIZES, "normal") }));
+        .map((t: Record<string, unknown>) => ({ thing: asThing(t.thing), label: short(t.label, 3, 22), size: oneOf(t.size, STAGE_SIZES, "normal"), tone: oneOf(t.tone, TONES, "") }));
       if (!actors.length) return null;
       const place = asThing(r.place);
       const n = actors.length;
@@ -1401,7 +1419,13 @@ export function checkScene(s: unknown): Scene | null {
         .slice(0, 2);
       // Something has to happen: one actor alone with nothing said is a things row, not a stage.
       if (n + (place ? 1 : 0) < 2 && !acts.length) return null;
-      return { family: "stage", place, placeLabel: place ? short(r.placeLabel, 3, 22) : "", actors, acts, lit: clampInt(r.lit, 0, n - 1, 0) };
+      // At most two washes in a picture; more than that and colour stops meaning anything.
+      let placeTone: Tone = place ? oneOf(r.placeTone, TONES, "") : "";
+      if (actors.filter((t) => t.tone).length + (placeTone ? 1 : 0) > 2) {
+        placeTone = "";
+        for (const t of actors) t.tone = "";
+      }
+      return { family: "stage", place, placeLabel: place ? short(r.placeLabel, 3, 22) : "", placeTone, actors, acts, lit: clampInt(r.lit, 0, n - 1, 0) };
     }
     if (r.family === "quote") {
       const tidy = (v: unknown) => String(v ?? "").replace(/\s+/g, " ").trim().replace(/^["“”']+|["“”']+$/g, "");

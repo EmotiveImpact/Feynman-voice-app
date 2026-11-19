@@ -81,11 +81,15 @@ export interface VennScene {
 
 export type PairShape = "line" | "curve" | "jagged" | "smooth" | "split" | "join" | "scatter" | "aligned" | "one" | "many" | "loop" | "path";
 
+/** Colour for meaning: one soft wash behind a thing. Green for good, red for bad. Older servers leave it out. */
+export type Tone = "" | "good" | "bad";
+
 export interface PairSide {
   label: string;
   shape: PairShape;
   count: number;
   note: string;
+  tone?: Tone;
 }
 
 /** The difference between X and Y: two small pictures side by side, one lit. */
@@ -279,7 +283,7 @@ export interface MapScene {
 export interface ThingsScene {
   family: "things";
   layout: "row" | "versus" | "chain" | "orbit" | "scale" | "parts";
-  items: { thing: string; label: string; size: number }[];
+  items: { thing: string; label: string; size: number; tone?: Tone }[];
   /** parts layout: named parts of the one thing, each at a spot on it. Older servers leave it out. */
   parts?: { label: string; at: string }[];
   lit: number;
@@ -469,7 +473,8 @@ export interface StageScene {
   /** A place drawn behind them at the right, or "". */
   place: string;
   placeLabel: string;
-  actors: { thing: string; label: string; size: "small" | "normal" | "big" }[];
+  placeTone?: Tone;
+  actors: { thing: string; label: string; size: "small" | "normal" | "big"; tone?: Tone }[];
   /** to -1 is the place. says and thinks ignore to. */
   acts: { from: number; to: number; kind: "says" | "thinks" | "gives" | "goes" | "against" | "with"; label: string }[];
   lit: number;

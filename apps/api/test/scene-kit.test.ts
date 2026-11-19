@@ -127,3 +127,47 @@ describe("quote: which words carry the meaning", () => {
     expect(checkScene({ family: "quote", text: "To be or not to be", phrase: "", note: "", by: "" })).toBeNull();
   });
 });
+
+describe("colour for meaning: good and bad only", () => {
+  const cells = (a: string, b: string, layout = "versus") => ({ family: "things", layout, items: [{ thing: "cell", label: "Healthy cell", size: 1, tone: a }, { thing: "cell", label: "Cancer cell", size: 1, tone: b }], parts: [], lit: 1 });
+  const tones = (s: ReturnType<typeof checkScene>) => (s?.family === "things" ? s.items.map((t) => t.tone) : null);
+
+  it("keeps good against bad", () => {
+    expect(tones(checkScene(cells("good", "bad")))).toEqual(["good", "bad"]);
+    expect(tones(checkScene(cells("", "bad")))).toEqual(["", "bad"]);
+  });
+
+  it("drops a colour it does not know, and a wash on everything", () => {
+    expect(tones(checkScene(cells("purple", "bad")))).toEqual(["", "bad"]);
+    expect(tones(checkScene(cells("good", "good")))).toEqual(["", ""]);
+    expect(tones(checkScene(cells("bad", "good", "orbit")))).toEqual(["", ""]);
+  });
+
+  it("gives a missing tone as none, so older lessons still pass", () => {
+    const s = checkScene({ family: "things", layout: "row", items: [{ thing: "coin", label: "Coin", size: 1 }, { thing: "book", label: "Book", size: 1 }], parts: [], lit: 0 });
+    expect(tones(s)).toEqual(["", ""]);
+  });
+
+  it("never washes both sides of a pair the same", () => {
+    const side = (label: string, tone: string) => ({ label, shape: "line", count: 0, note: "", tone });
+    const same = checkScene({ family: "pair", left: side("A", "bad"), right: side("B", "bad"), lit: "left" });
+    expect(same?.family === "pair" && [same.left.tone, same.right.tone]).toEqual(["", ""]);
+    const split = checkScene({ family: "pair", left: side("A", "good"), right: side("B", "bad"), lit: "left" });
+    expect(split?.family === "pair" && [split.left.tone, split.right.tone]).toEqual(["good", "bad"]);
+  });
+
+  it("allows at most two washes on a stage, and none on a place that is not there", () => {
+    const stage = (t: string[], placeTone: string, place = "shop") => ({ family: "stage", place, placeLabel: "Shop", placeTone, actors: t.map((tone, i) => ({ thing: "person", label: `P${i}`, size: "normal", tone })), acts: [{ from: 0, to: 0, kind: "says", label: "Hello" }], lit: 0 });
+    const two = checkScene(stage(["good", ""], "bad"));
+    expect(two?.family === "stage" && [two.actors.map((a) => a.tone), two.placeTone]).toEqual([["good", ""], "bad"]);
+    const three = checkScene(stage(["good", "bad"], "bad"));
+    expect(three?.family === "stage" && [three.actors.map((a) => a.tone), three.placeTone]).toEqual([["", ""], ""]);
+    const none = checkScene(stage(["", ""], "bad", ""));
+    expect(none?.family === "stage" && none.placeTone).toBe("");
+  });
+
+  it("the prompt says when colour is allowed", () => {
+    expect(SCENE_PROMPT).toContain("colour for meaning");
+    expect(SCENE_PROMPT).toContain("never for a matter of opinion");
+  });
+});
