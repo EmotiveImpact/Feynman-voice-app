@@ -23,7 +23,7 @@ import { Skia, type SkCanvas, type SkFont, type SkPaint } from "@shopify/react-n
 
 import { THINGS } from "./things";
 
-import type { BalanceScene, BraceScene, Change, CompareScene, CrowdScene, CutawayScene, FanScene, FunnelScene, GraphScene, GridScene, LayersScene, LinksScene, MapScene, MirrorScene, PairScene, PairSide, ParticlesScene, RadialScene, SankeyScene, Scene, Shape, SpectrumScene, SpiralScene, StackScene, StairsScene, TestScene, ThingsScene, ThresholdScene, TimelineScene, TreeScene, UnitsScene, VennScene, WaveScene, ZoomScene } from "./types";
+import type { BalanceScene, BondsScene, BraceScene, BridgeScene, CaseScene, Change, EquationScene, ForcesScene, GeometryScene, LeverScene, MachineScene, MatrixScene, PatternScene, ScatterScene, SpectraScene, SpreadScene, WorkingScene, CompareScene, CrowdScene, CutawayScene, FanScene, FunnelScene, GraphScene, GridScene, LayersScene, LinksScene, MapScene, MirrorScene, PairScene, PairSide, ParticlesScene, RadialScene, SankeyScene, Scene, Shape, SpectrumScene, SpiralScene, StackScene, StairsScene, TestScene, ThingsScene, ThresholdScene, TimelineScene, TreeScene, UnitsScene, VennScene, WaveScene, ZoomScene } from "./types";
 
 export const VIEW_W = 300;
 
@@ -406,6 +406,12 @@ function drawLinks(c: SkCanvas, p: SkPaint, font: SkFont | null, s: LinksScene, 
     const ly = below ? (y > 140 ? y - 20 : y + 20) : y < 30 ? y - 15 : y - 20;
     label(c, p, font, s.nodes[i], x, ly, x < 40 ? "left" : x > 260 ? "right" : "center", lit[i] ? SIL : LAB, a);
   }
+  // A feedback loop says which kind it is, in the middle: one that builds on itself, or one that settles back.
+  if (s.layout === "loop" && s.nodes.length > 2 && s.feedback) {
+    const kF = beat(f, 2.4, 3);
+    label(c, p, font, s.feedback === "reinforcing" ? "Reinforcing" : "Balancing", 150, 74, "center", SIL, kF);
+    label(c, p, font, s.feedback === "reinforcing" ? "builds on itself" : "settles back", 150, 87, "center", LAB, kF * 0.85);
+  }
 }
 
 // ---- plot: one thing changes with another ----
@@ -428,6 +434,15 @@ function shapeY(shape: Shape, x: number, shift: number, stretch: number) {
       const w = 0.06 + stretch * 0.22;
       return 0.85 * Math.exp(-((X - 0.5) * (X - 0.5)) / (2 * w * w));
     }
+    case "grow":
+      // Compounding: slow, then steep.
+      return X <= 0 ? 0.06 : 0.06 + (0.84 * (Math.exp(3.4 * X) - 1)) / (Math.exp(3.4) - 1);
+    case "u_curve":
+      return 0.14 + 0.74 * 4 * (X - 0.5) * (X - 0.5);
+    case "cycle":
+      return 0.5 + 0.32 * Math.sin(X * TAU * (1.2 + (1 - stretch) * 1.1));
+    case "steps":
+      return 0.12 + 0.76 * (Math.floor(clamp(X, 0, 0.999) * 4) / 3);
     default: {
       const w = 0.03 + stretch * 0.15;
       return 0.9 / (1 + Math.exp(-(X - 0.5) / w));
@@ -2035,6 +2050,21 @@ function drawUnits(c: SkCanvas, p: SkPaint, font: SkFont | null, s: UnitsScene, 
     else dot(c, p, X0 + col * P, Y0 + r * P, lit ? 2.9 : 2.5, lit ? a : a * 0.45, lit ? BLUE : SIL);
   }
   const kLab = beat(f, 2, 3);
+  // A second group among the rest, as rings: the ones who look like the lit ones but are not.
+  const also = s.also && s.alsoLabel ? Math.min(s.also, 100 - s.lit) : 0;
+  if (also > 0) {
+    const kA = beat(f, 2.2, 3);
+    for (let i = s.lit; i < s.lit + also; i++) ring(c, p, X0 + (i % 10) * P, Y0 + Math.floor(i / 10) * P, 4.4, kA * 0.9);
+    label(c, p, font, `${shown} in 100`, 172, 46, "left", SIL, kLab);
+    label(c, p, font, s.label, 172, 59, "left", LAB, kLab);
+    label(c, p, font, `${also} in 100`, 172, 82, "left", SIL, kA * 0.85);
+    label(c, p, font, s.alsoLabel ?? "", 172, 95, "left", LAB, kA);
+    if (s.rest) {
+      label(c, p, font, `${100 - shown - also} in 100`, 172, 118, "left", LAB, kLab);
+      label(c, p, font, s.rest, 172, 131, "left", LAB, kLab * 0.8);
+    }
+    return;
+  }
   label(c, p, font, `${shown} in 100`, 172, 64, "left", SIL, kLab);
   label(c, p, font, s.label, 172, 78, "left", LAB, kLab);
   if (s.rest) {
@@ -2239,6 +2269,729 @@ function drawThings(c: SkCanvas, p: SkPaint, font: SkFont | null, s: ThingsScene
         if (i + 1 === litI && !stepping) pass(c, p, x1, Y, x2, Y, beat(f, 2.3, 3));
       }
     }
+  }
+}
+
+// ==== v10: the fourteen devices that complete the language ====
+// Each one answers a question nothing else in the kit answers, and is made
+// only of the same marks: dots, rings, lines, links, soft boxes and labels.
+
+/** A label that may take two lines: split at the word that balances them best, never mid-word. */
+function label2(c: SkCanvas, p: SkPaint, font: SkFont | null, text: string, x: number, y: number, align: "left" | "center" | "right", colour: string, a: number, maxW: number) {
+  "worklet";
+  if (!font || !text || a <= 0.01) return;
+  const ws = text.split(" ");
+  if (textW(font, text) <= maxW || ws.length < 2) {
+    label(c, p, font, fitText(font, text, maxW), x, y, align, colour, a);
+    return;
+  }
+  let best = 1;
+  let bestW = 1e9;
+  for (let i = 1; i < ws.length; i++) {
+    const w = Math.max(textW(font, ws.slice(0, i).join(" ")), textW(font, ws.slice(i).join(" ")));
+    if (w < bestW) {
+      bestW = w;
+      best = i;
+    }
+  }
+  label(c, p, font, fitText(font, ws.slice(0, best).join(" "), maxW), x, y - 5.6, align, colour, a);
+  label(c, p, font, fitText(font, ws.slice(best).join(" "), maxW), x, y + 5.6, align, colour, a);
+}
+
+/** A dashed soft box: a place still to be filled, or a thing set against the rest. */
+function dashBox(c: SkCanvas, p: SkPaint, x: number, y: number, w: number, h: number, a: number, r = 4) {
+  "worklet";
+  if (a <= 0.01 || w <= 0 || h <= 0) return;
+  stroke(p, SIL, 0.5 * a, W0, [3, 5]);
+  c.drawRRect(Skia.RRectXY(Skia.XYWHRect(x, y, w, h), r, r), p);
+}
+
+/** A sign between two terms, drawn from short lines. */
+function sign(c: SkCanvas, p: SkPaint, kind: string, x: number, y: number, a: number) {
+  "worklet";
+  if (a <= 0.01) return;
+  const al = 0.8 * a;
+  if (kind === "plus") {
+    line(c, p, x - 4, y, x + 4, y, al);
+    line(c, p, x, y - 4, x, y + 4, al);
+  } else if (kind === "minus") line(c, p, x - 4, y, x + 4, y, al);
+  else if (kind === "times") {
+    line(c, p, x - 3.4, y - 3.4, x + 3.4, y + 3.4, al);
+    line(c, p, x + 3.4, y - 3.4, x - 3.4, y + 3.4, al);
+  } else if (kind === "over") line(c, p, x - 3, y + 6, x + 3, y - 6, al);
+  else if (kind === "equals") {
+    line(c, p, x - 4.5, y - 2.6, x + 4.5, y - 2.6, al);
+    line(c, p, x - 4.5, y + 2.6, x + 4.5, y + 2.6, al);
+  } else if (kind === "both") {
+    // Goes both ways: two half arrows, one each way.
+    line(c, p, x - 7, y - 2.6, x + 7, y - 2.6, al);
+    line(c, p, x + 7, y - 2.6, x + 3, y - 6, al);
+    line(c, p, x + 7, y + 2.6, x - 7, y + 2.6, al);
+    line(c, p, x - 7, y + 2.6, x - 3, y + 6, al);
+  } else arrow(c, p, x - 7, y, x + 7, y, al);
+}
+
+// ---- spectra: where does it sit on several scales at once? ----
+function drawSpectra(c: SkCanvas, p: SkPaint, font: SkFont | null, s: SpectraScene, changes: Change[], f: Frame) {
+  "worklet";
+  const stepping = hasKind(changes, "step");
+  const n = s.rows.length;
+  const X0 = 84;
+  const X1 = 216;
+  const pitch = Math.min(32, 104 / n);
+  const y0 = 98 - (pitch * (n - 1)) / 2;
+  label(c, p, font, s.item, 150, 22, "center", SIL, beat(f, 0.3, 3));
+  const litI = stepping ? Math.min(n - 1, Math.floor(f.v * n)) : s.lit;
+  const kL = stepping ? 1 : beat(f, 2.7, 3);
+  for (let i = 0; i < n; i++) {
+    const row = s.rows[i];
+    const y = y0 + i * pitch;
+    const k = beat(f, 0.4 + (i / n) * 0.9, 3);
+    const lit = i === litI && kL > 0.5;
+    line(c, p, X0, y, X1, y, lit ? 0.6 : 0.34, SIL, k);
+    line(c, p, X0, y - 4, X0, y + 4, 0.34 * k);
+    line(c, p, X1, y - 4, X1, y + 4, 0.34 * k);
+    label(c, p, font, fitText(font, row.left, X0 - 16), X0 - 9, y, "right", lit ? SIL : LAB, k);
+    label(c, p, font, fitText(font, row.right, 300 - X1 - 16), X1 + 9, y, "left", lit ? SIL : LAB, k);
+    const u = beat(f, 1.5 + (i / n) * 0.7, 3);
+    const x = X0 + (X1 - X0) * (0.5 + (row.at - 0.5) * u);
+    if (lit) dot(c, p, x, y, 5, k, BLUE);
+    else dot(c, p, x, y, 3.4, k * 0.9);
+  }
+}
+
+// ---- pattern: what comes next? ----
+// A run of terms with one gap. The gap waits as a dashed box, then its answer lands, lit.
+function drawPattern(c: SkCanvas, p: SkPaint, font: SkFont | null, s: PatternScene, changes: Change[], f: Frame) {
+  "worklet";
+  const stepping = hasKind(changes, "step");
+  const n = s.items.length;
+  const gapW = 8;
+  const bw = Math.min(40, (268 - (n - 1) * gapW) / n);
+  const total = n * bw + (n - 1) * gapW;
+  const x0 = 150 - total / 2;
+  const Y = 66;
+  const H = 30;
+  const kR = stepping ? clamp(f.v * 1.6 - 0.3) : beat(f, 2.7, 3);
+  const shown = kR > 0.5;
+  for (let i = 0; i < n; i++) {
+    const x = x0 + i * (bw + gapW);
+    const k = beat(f, 0.3 + (i / n) * 1.2, 3);
+    // The hop from one term to the next: the rule being applied.
+    if (i < n - 1) strokePts(c, p, arcPts(x + bw + gapW / 2, Y - 3, (bw + gapW) / 2 - 3, Math.PI * 1.12, Math.PI * 1.88, 10), 0.28 * k);
+    if (i === s.gap) {
+      if (shown) {
+        box(c, p, x, Y, bw, H, 1, true, 7);
+        label(c, p, font, fitText(font, s.answer, bw - 6), x + bw / 2, Y + H / 2, "center", SIL, 1);
+      } else {
+        dashBox(c, p, x, Y, bw, H, k, 7);
+        label(c, p, font, "?", x + bw / 2, Y + H / 2, "center", LAB, k);
+      }
+    } else {
+      box(c, p, x, Y, bw, H, k, false, 7);
+      label(c, p, font, fitText(font, s.items[i], bw - 6), x + bw / 2, Y + H / 2, "center", SIL, k * 0.9);
+    }
+  }
+  label(c, p, font, s.rule, 150, Y + H + 24, "center", shown ? SIL : LAB, beat(f, 1.8, 3));
+}
+
+// ---- machine: what goes in, what is done to it, what comes out? ----
+function drawMachine(c: SkCanvas, p: SkPaint, font: SkFont | null, s: MachineScene, changes: Change[], f: Frame) {
+  "worklet";
+  const stepping = hasKind(changes, "step");
+  const ni = s.inputs.length;
+  const no = s.outputs.length;
+  const BX = 114;
+  const BW = 72;
+  const BY = 58;
+  const BH = 60;
+  const CY = BY + BH / 2;
+  box(c, p, BX, BY, BW, BH, beat(f, 0, 3), false, 12);
+  label2(c, p, font, s.name, 150, CY, "center", SIL, beat(f, 0.4, 3), BW - 10);
+  const litO = stepping ? Math.min(no - 1, Math.floor(f.v * no)) : s.lit;
+  const prog = stepping ? clamp((f.v * no - litO) * 1.5) : beat(f, 2.7, 3);
+  for (let i = 0; i < ni; i++) {
+    const y = CY + (i - (ni - 1) / 2) * 32;
+    const by = CY + (i - (ni - 1) / 2) * 14;
+    const k = beat(f, 0.8 + (i / ni) * 0.6, 3);
+    label(c, p, font, fitText(font, s.inputs[i], 76), 82, y, "right", LAB, k);
+    arrow(c, p, 88, y, BX - 5, by, 0.55 * k, SIL, k);
+  }
+  for (let j = 0; j < no; j++) {
+    const y = CY + (j - (no - 1) / 2) * 32;
+    const by = CY + (j - (no - 1) / 2) * 14;
+    const k = beat(f, 1.5 + (j / no) * 0.6, 3);
+    const lit = j === litO;
+    const done = lit && prog >= 0.999;
+    arrow(c, p, BX + BW + 5, by, 212, y, 0.55 * k, SIL, k);
+    if (lit) pass(c, p, BX + BW + 5, by, 212, y, prog);
+    if (done) dot(c, p, 212, y, 4.2, 1, BLUE);
+    label(c, p, font, fitText(font, s.outputs[j], 74), 220, y, "left", done ? SIL : LAB, k);
+  }
+}
+
+// ---- case: what supports the claim, and what stands against it? ----
+// The claim sits on top. Reasons hold it up from below. One objection stands
+// to the side on a dashed line: set apart by position, never by colour.
+function drawCase(c: SkCanvas, p: SkPaint, font: SkFont | null, s: CaseScene, changes: Change[], f: Frame) {
+  "worklet";
+  const stepping = hasKind(changes, "step");
+  const nr = s.reasons.length;
+  const hasObj = s.objection.length > 0;
+  const cols = nr + (hasObj ? 1 : 0);
+  const cw = Math.min(210, Math.max(90, textW(font, s.claim) + 26));
+  const CY = 16;
+  const CH = 30;
+  box(c, p, 150 - cw / 2, CY, cw, CH, beat(f, 0, 3), false, 8);
+  label2(c, p, font, s.claim, 150, CY + CH / 2, "center", SIL, beat(f, 0.3, 3), cw - 12);
+  const gapW = 10;
+  const bw = Math.min(98, (276 - (cols - 1) * gapW) / cols);
+  const total = cols * bw + (cols - 1) * gapW;
+  const x0 = 150 - total / 2;
+  const RY = 102;
+  const RH = 32;
+  const litI = stepping ? Math.min(cols - 1, Math.floor(f.v * cols)) : s.lit < 0 ? cols - 1 : s.lit;
+  const prog = stepping ? clamp((f.v * cols - litI) * 1.5) : beat(f, 2.7, 3);
+  for (let i = 0; i < cols; i++) {
+    const isObj = hasObj && i === cols - 1;
+    const x = x0 + i * (bw + gapW);
+    const cx = x + bw / 2;
+    const k = beat(f, 0.9 + (i / cols) * 0.9, 3);
+    const lit = i === litI && prog > 0.02;
+    const tx = 150 + (cx - 150) * 0.32;
+    const ty = CY + CH + 4;
+    if (isObj) {
+      line(c, p, cx, RY - 4, tx, ty, 0.45 * k, SIL, k, [3, 5]);
+      // A small cross on the line: this one pushes against the claim.
+      const mx = (cx + tx) / 2;
+      const my = (RY - 4 + ty) / 2;
+      line(c, p, mx - 3.5, my - 3.5, mx + 3.5, my + 3.5, 0.8 * k, lit ? BLUE : SIL);
+      line(c, p, mx + 3.5, my - 3.5, mx - 3.5, my + 3.5, 0.8 * k, lit ? BLUE : SIL);
+      if (lit) box(c, p, x, RY, bw, RH, 1, true, 8);
+      else dashBox(c, p, x, RY, bw, RH, k, 8);
+      label(c, p, font, "But", cx, RY + RH + 12, "center", LAB, k * 0.8);
+    } else {
+      arrow(c, p, cx, RY - 4, tx, ty, 0.5 * k, SIL, k);
+      if (lit) pass(c, p, cx, RY - 4, tx, ty, prog);
+      box(c, p, x, RY, bw, RH, k, lit, 8);
+    }
+    label2(c, p, font, isObj ? s.objection : s.reasons[i], cx, RY + RH / 2, "center", lit ? SIL : LAB, k, bw - 10);
+  }
+}
+
+// ---- forces: what pushes and pulls, and what do they add up to? ----
+// Arrows from one object, each as long as its force. The lit arrow is what
+// they add up to; when they cancel, the object itself is lit.
+function drawForces(c: SkCanvas, p: SkPaint, font: SkFont | null, s: ForcesScene, changes: Change[], f: Frame) {
+  "worklet";
+  const growing = hasKind(changes, "grow");
+  const n = s.forces.length;
+  const cx = 150;
+  const cy = 84;
+  const U = 10;
+  let nx = 0;
+  let ny = 0;
+  const used = [0, 0, 0, 0];
+  for (let i = 0; i < n; i++) {
+    const fo = s.forces[i];
+    const d = fo.dir === "up" ? 0 : fo.dir === "down" ? 1 : fo.dir === "left" ? 2 : 3;
+    const dx = d === 2 ? -1 : d === 3 ? 1 : 0;
+    const dy = d === 0 ? -1 : d === 1 ? 1 : 0;
+    const size = growing && i === n - 1 ? fo.size * f.v : fo.size;
+    nx += dx * size;
+    ny += dy * size;
+    // A second force the same way sits beside the first.
+    const off = used[d] * 9;
+    used[d] += 1;
+    const ox = dy !== 0 ? off : 0;
+    const oy = dx !== 0 ? off : 0;
+    const k = beat(f, 0.8 + (i / n) * 0.9, 3);
+    const len = size * U;
+    const x1 = cx + dx * 9 + ox;
+    const y1 = cy + dy * 9 + oy;
+    const x2 = cx + dx * (9 + len) + ox;
+    const y2 = cy + dy * (9 + len) + oy;
+    if (len > 3) arrow(c, p, x1, y1, x2, y2, 0.85 * k, SIL, k);
+    if (dx !== 0) label(c, p, font, fo.label, x2 + dx * 6, y2 - 9, dx < 0 ? "right" : "left", LAB, k);
+    else label(c, p, font, fo.label, x2 + 7, y2 + dy * 2, "left", LAB, k);
+  }
+  const kN = growing ? 1 : beat(f, 2.7, 3);
+  const mag = Math.sqrt(nx * nx + ny * ny);
+  const balanced = mag < 0.3;
+  if (balanced) {
+    dot(c, p, cx, cy, kN > 0.5 ? 6 : 5, beat(f, 0.2, 3), kN > 0.5 ? BLUE : SIL);
+    label(c, p, font, s.result, cx + 13, cy + 15, "left", SIL, kN);
+  } else {
+    dot(c, p, cx, cy, 5, beat(f, 0.2, 3));
+    // What they add up to, drawn just beside the forces it comes from.
+    const ux = nx / mag;
+    const uy = ny / mag;
+    const px = -uy * 11;
+    const py = ux * 11;
+    const sx = cx + px + ux * 9;
+    const sy = cy + py + uy * 9;
+    const ex = sx + ux * mag * U;
+    const ey = sy + uy * mag * U;
+    arrow(c, p, sx, sy, ex, ey, kN > 0.01 ? 1 : 0, BLUE, kN);
+    // Its name carries on from the arrow's tip, clear of the other arrows.
+    if (Math.abs(ux) >= Math.abs(uy)) label(c, p, font, s.result, ex + (ux < 0 ? -7 : 7), ey, ux < 0 ? "right" : "left", SIL, clamp(kN * 2 - 1));
+    else label(c, p, font, s.result, ex, ey + (uy < 0 ? -9 : 10), "center", SIL, clamp(kN * 2 - 1));
+  }
+  label(c, p, font, s.object, cx - 12, cy + 15, "right", LAB, beat(f, 0.5, 3));
+}
+
+// ---- equation: what combines into what? ----
+function drawEquation(c: SkCanvas, p: SkPaint, font: SkFont | null, s: EquationScene, changes: Change[], f: Frame) {
+  "worklet";
+  const stepping = hasKind(changes, "step");
+  const n = s.terms.length;
+  const SG = 22;
+  const ws: number[] = [];
+  let sum = 0;
+  for (let i = 0; i < n; i++) {
+    const w = Math.min(84, Math.max(36, textW(font, s.terms[i].label) + 18, textW(font, s.terms[i].note) + 4));
+    ws.push(w);
+    sum += w;
+  }
+  const room = 280 - (n - 1) * SG;
+  const sc = sum > room ? room / sum : 1;
+  const total = sum * sc + (n - 1) * SG;
+  let x = 150 - total / 2;
+  const Y = 62;
+  const H = 32;
+  const litI = stepping ? Math.min(n - 1, Math.floor(f.v * n)) : s.lit;
+  const kL = stepping ? 1 : beat(f, 2.7, 3);
+  for (let i = 0; i < n; i++) {
+    const w = ws[i] * sc;
+    const k = beat(f, 0.3 + (i / n) * 1.5, 3);
+    const lit = i === litI && kL > 0.5;
+    box(c, p, x, Y, w, H, k, lit, 8);
+    label(c, p, font, fitText(font, s.terms[i].label, w - 8), x + w / 2, Y + H / 2, "center", SIL, k * (lit ? 1 : 0.9));
+    label(c, p, font, fitText(font, s.terms[i].note, w + SG - 6), x + w / 2, Y + H + 14, "center", lit ? SIL : LAB, k);
+    if (i < n - 1) sign(c, p, s.signs[i], x + w + SG / 2, Y + H / 2, beat(f, 0.6 + (i / n) * 1.5, 3));
+    x += w + SG;
+  }
+}
+
+// ---- bridge: what maps to what? ----
+// Two sets and the links between them. A light travels the lit link.
+function drawBridge(c: SkCanvas, p: SkPaint, font: SkFont | null, s: BridgeScene, changes: Change[], f: Frame) {
+  "worklet";
+  const stepping = hasKind(changes, "step");
+  const nl = s.left.length;
+  const nr = s.right.length;
+  const m = s.maps.length;
+  const LX = 108;
+  const RX = 192;
+  const CY = 96;
+  const pitch = Math.min(30, 100 / Math.max(1, Math.max(nl, nr) - 1));
+  const yl = (i: number) => CY + (i - (nl - 1) / 2) * pitch;
+  const yr = (i: number) => CY + (i - (nr - 1) / 2) * pitch;
+  label(c, p, font, s.leftTitle, LX, 22, "right", LAB, beat(f, 0.3, 3) * 0.85);
+  label(c, p, font, s.rightTitle, RX, 22, "left", LAB, beat(f, 0.3, 3) * 0.85);
+  const litI = stepping ? Math.min(m - 1, Math.floor(f.v * m)) : s.lit;
+  const prog = stepping ? clamp((f.v * m - litI) * 1.5) : beat(f, 2.7, 3);
+  const lm = s.maps[litI];
+  for (let j = 0; j < m; j++) {
+    const mp = s.maps[j];
+    const k = beat(f, 1.4 + (j / m) * 0.8, 3);
+    line(c, p, LX + 7, yl(mp.from), RX - 7, yr(mp.to), j === litI ? 0.6 : 0.28, SIL, k);
+    if (j === litI) pass(c, p, LX + 7, yl(mp.from), RX - 7, yr(mp.to), prog);
+  }
+  for (let i = 0; i < nl; i++) {
+    const k = beat(f, 0.5 + (i / nl) * 0.7, 3);
+    const lit = i === lm.from && prog > 0.01;
+    dot(c, p, LX, yl(i), lit ? 4.2 : 3, k, lit ? BLUE : SIL);
+    label(c, p, font, fitText(font, s.left[i], LX - 18), LX - 11, yl(i), "right", lit ? SIL : LAB, k);
+  }
+  for (let i = 0; i < nr; i++) {
+    const k = beat(f, 0.8 + (i / nr) * 0.7, 3);
+    const lit = i === lm.to && prog >= 0.999;
+    dot(c, p, RX, yr(i), lit ? 4.2 : 3, k, lit ? BLUE : SIL);
+    label(c, p, font, fitText(font, s.right[i], 300 - RX - 18), RX + 11, yr(i), "left", lit ? SIL : LAB, k);
+  }
+}
+
+// ---- spread: how are the values spread? ----
+// Dots piled into the shape of the data, one dot for one case.
+const SPREAD: Record<string, number[]> = {
+  normal: [1, 1, 2, 3, 5, 7, 8, 9, 8, 7, 5, 3, 2, 1, 1],
+  skew_right: [2, 5, 8, 9, 8, 6, 5, 4, 3, 2, 2, 1, 1, 1, 0],
+  skew_left: [0, 1, 1, 1, 2, 2, 3, 4, 5, 6, 8, 9, 8, 5, 2],
+  uniform: [5, 5, 6, 5, 5, 6, 5, 5, 6, 5, 5, 5, 6, 5, 5],
+  bimodal: [1, 2, 4, 7, 8, 6, 3, 2, 3, 6, 8, 7, 4, 2, 1],
+};
+
+function drawSpread(c: SkCanvas, p: SkPaint, font: SkFont | null, s: SpreadScene, changes: Change[], f: Frame) {
+  "worklet";
+  const growing = hasKind(changes, "grow");
+  const cols = SPREAD[s.shape] ?? SPREAD.normal;
+  const X0 = 52;
+  const PX = 14;
+  const FLOOR = 138;
+  const PY = 9.4;
+  const R = 2.7;
+  line(c, p, 36, FLOOR, 264, FLOOR, 0.32, SIL, beat(f, 0, 3));
+  label(c, p, font, s.x, 150, FLOOR + 16, "center", LAB, beat(f, 0.3, 3));
+  let count = 0;
+  let wsum = 0;
+  for (let j = 0; j < cols.length; j++) {
+    count += cols[j];
+    wsum += cols[j] * j;
+  }
+  const mean = wsum / count;
+  let vsum = 0;
+  for (let j = 0; j < cols.length; j++) vsum += cols[j] * (j - mean) * (j - mean);
+  const sd = Math.sqrt(vsum / count);
+  const kL = beat(f, 2.7, 3);
+  const on = kL > 0.5;
+  const tailL = s.lit === "left_tail";
+  const tailR = s.lit === "right_tail";
+  let tipX = 0;
+  let tipY = FLOOR;
+  let tipN = 0;
+  let seen = 0;
+  for (let j = 0; j < cols.length; j++) {
+    const inTail = (tailL && j <= 2) || (tailR && j >= cols.length - 3);
+    for (let i = 0; i < cols[j]; i++) {
+      const order = rnd(j * 17 + i * 3 + 1);
+      seen++;
+      // The sample grows with the slider, in no order, so the shape appears out of scatter.
+      let a = growing ? clamp(f.v * count * 1.05 - order * count) : beat(f, 0.5 + order * 1.6, 3);
+      const x = X0 + j * PX;
+      const y = FLOOR - 6 - i * PY;
+      // Each dot drops into place.
+      const yy = growing || f.still ? y : y - (1 - a) * 14;
+      if (inTail) {
+        tipX += x;
+        tipN += 1;
+        if (y < tipY) tipY = y;
+      }
+      dot(c, p, x, yy, inTail && on ? R + 0.2 : R, inTail && on ? a : a * 0.7, inTail && on ? BLUE : SIL);
+    }
+  }
+  const mx = X0 + mean * PX;
+  if (s.lit === "middle") {
+    line(c, p, mx, FLOOR, mx, 38, 1, BLUE, kL, undefined, W0 + 0.4);
+    label(c, p, font, s.label, mx, 27, alignAt(mx), SIL, clamp(kL * 2 - 1));
+  } else if (s.lit === "width") {
+    const a = mx - sd * PX;
+    const b = mx + sd * PX;
+    line(c, p, mx, 44, a, 44, 1, BLUE, kL, undefined, W0 + 0.4);
+    line(c, p, mx, 44, b, 44, 1, BLUE, kL, undefined, W0 + 0.4);
+    if (on) {
+      line(c, p, a, 40, a, 48, 1, BLUE);
+      line(c, p, b, 40, b, 48, 1, BLUE);
+    }
+    label(c, p, font, s.label, mx, 30, "center", SIL, clamp(kL * 2 - 1));
+  } else if (s.lit === "outlier") {
+    const ox = s.shape === "skew_left" ? 30 : 270;
+    dot(c, p, ox, FLOOR - 6, on ? 5 : R, beat(f, 2.2, 3), on ? BLUE : SIL);
+    label(c, p, font, s.label, ox, FLOOR - 22, ox < 150 ? "left" : "right", SIL, clamp(kL * 2 - 1));
+  } else if (tipN > 0) {
+    const tx = tipX / tipN;
+    // The name sits in the clear above the pile, with a thin leader down to the tail.
+    label(c, p, font, s.label, tailL ? 30 : 270, 28, tailL ? "left" : "right", SIL, clamp(kL * 2 - 1));
+    line(c, p, tx, 37, tx, tipY - 8, 0.4 * clamp(kL * 2 - 1));
+  }
+}
+
+// ---- scatter: do two things go together? ----
+// A cloud of points. The trend is traced through it as one lit line, or one
+// point that does not fit is lit instead.
+function drawScatter(c: SkCanvas, p: SkPaint, font: SkFont | null, s: ScatterScene, changes: Change[], f: Frame) {
+  "worklet";
+  const growing = hasKind(changes, "grow");
+  const L = 44;
+  const R = 268;
+  const T = 22;
+  const B = 140;
+  const X = (x: number) => L + x * (R - L);
+  const Y = (y: number) => B - y * (B - T);
+  axes(c, p, font, f, L, T, R, B, s.x, s.y);
+  const amp = s.trend === "none" ? 0.8 : s.strength === "strong" ? 0.17 : 0.5;
+  const base = (x: number) => (s.trend === "up" ? 0.14 + 0.72 * x : s.trend === "down" ? 0.86 - 0.72 * x : 0.5);
+  const N = 22;
+  for (let i = 0; i < N; i++) {
+    const x = 0.06 + 0.88 * rnd(i * 3 + 1);
+    const y = clamp(base(x) + (rnd(i * 7 + 5) - 0.5) * amp, 0.05, 0.95);
+    const a = growing ? clamp(f.v * N * 1.05 - i) : beat(f, 0.8 + (i / N) * 1.4, 4);
+    dot(c, p, X(x), Y(y), 2.7, a * 0.75);
+  }
+  const kL = growing ? 1 : beat(f, 3.6, 4);
+  const y0 = base(0.04);
+  const y1 = base(0.96);
+  const outlier = s.lit === "outlier";
+  if (outlier) {
+    line(c, p, X(0.04), Y(y0), X(0.96), Y(y1), 0.5, SIL, beat(f, 2.6, 4));
+    const ox = 0.8;
+    const oy = s.trend === "up" ? 0.16 : 0.88;
+    dot(c, p, X(ox), Y(oy), kL > 0.5 ? 5 : 2.7, beat(f, 2.4, 4), kL > 0.5 ? BLUE : SIL);
+    label(c, p, font, s.label, X(ox) - 9, Y(oy), "right", SIL, clamp(kL * 2 - 1));
+  } else {
+    // Trace: the line is drawn through the cloud, with a light at its pen tip.
+    const dash = s.trend === "none" ? [4, 5] : undefined;
+    line(c, p, X(0.04), Y(y0), X(0.96), Y(y1), 1, BLUE, kL, dash, W0 + 0.4);
+    if (kL > 0.02 && kL < 0.98) dot(c, p, X(0.04 + 0.92 * kL), Y(y0 + (y1 - y0) * kL), 2.6, 1, BLUE);
+    const up = s.trend === "up";
+    label(c, p, font, s.label, X(0.96), up ? Y(y1) - 11 : Y(y1) + (s.trend === "down" ? -12 : -11), "right", SIL, clamp(kL * 2 - 1));
+  }
+}
+
+// ---- matrix: what happens for every combination? ----
+function drawMatrix(c: SkCanvas, p: SkPaint, font: SkFont | null, s: MatrixScene, changes: Change[], f: Frame) {
+  "worklet";
+  const stepping = hasKind(changes, "step");
+  const nr = s.rows.length;
+  const nc = s.cols.length;
+  const L = 100;
+  const R = 282;
+  const T = 48;
+  const B = 150;
+  const cw = (R - L) / nc;
+  const rh = (B - T) / nr;
+  const k0 = beat(f, 0, 3);
+  for (let i = 0; i <= nr; i++) line(c, p, L, T + i * rh, R, T + i * rh, i === 0 || i === nr ? 0.34 : 0.22, SIL, k0);
+  for (let j = 0; j <= nc; j++) line(c, p, L + j * cw, T, L + j * cw, B, j === 0 || j === nc ? 0.34 : 0.22, SIL, k0);
+  label(c, p, font, s.colTitle, (L + R) / 2, 14, "center", LAB, beat(f, 0.4, 3) * 0.8);
+  if (font && s.rowTitle) {
+    c.save();
+    c.translate(16, (T + B) / 2);
+    c.rotate(-90, 0, 0);
+    label(c, p, font, s.rowTitle, 0, 0, "center", LAB, beat(f, 0.4, 3) * 0.8);
+    c.restore();
+  }
+  const cells = nr * nc;
+  const stepI = Math.min(cells - 1, Math.floor(f.v * cells));
+  const lr = stepping ? Math.floor(stepI / nc) : s.litRow;
+  const lc = stepping ? stepI % nc : s.litCol;
+  const kL = stepping ? 1 : beat(f, 2.7, 3);
+  for (let j = 0; j < nc; j++) label(c, p, font, fitText(font, s.cols[j], cw - 6), L + j * cw + cw / 2, T - 12, "center", j === lc && kL > 0.5 ? SIL : LAB, beat(f, 0.6, 3));
+  for (let i = 0; i < nr; i++) label2(c, p, font, s.rows[i], L - 8, T + i * rh + rh / 2, "right", i === lr && kL > 0.5 ? SIL : LAB, beat(f, 0.6, 3), L - 34);
+  for (let i = 0; i < nr; i++)
+    for (let j = 0; j < nc; j++) {
+      const k = beat(f, 1.1 + ((i * nc + j) / cells) * 1.1, 3);
+      const lit = i === lr && j === lc && kL > 0.5;
+      if (lit) box(c, p, L + j * cw + 3, T + i * rh + 3, cw - 6, rh - 6, 1, true, 6);
+      label2(c, p, font, s.cells[i * nc + j], L + j * cw + cw / 2, T + i * rh + rh / 2, "center", lit ? SIL : LAB, k, cw - 10);
+    }
+}
+
+// ---- geometry: a plain shape with its parts named ----
+function drawGeometry(c: SkCanvas, p: SkPaint, font: SkFont | null, s: GeometryScene, changes: Change[], f: Frame) {
+  "worklet";
+  const k0 = beat(f, 0.2, 3);
+  const k1 = beat(f, 1.2, 3);
+  const kL = beat(f, 2.7, 3);
+  const on = kL > 0.5;
+  const L = s.labels;
+  const has3 = (i: number) => i < L.length && L[i].length > 0;
+  const col = (i: number) => (on && s.lit === i ? BLUE : SIL);
+  const al = (i: number) => (on && s.lit === i ? 1 : 0.8);
+  const w = (i: number) => (on && s.lit === i ? W0 + 0.5 : W0);
+  const tx = (i: number) => (on && s.lit === i ? SIL : LAB);
+  if (s.shape === "right_triangle" || s.shape === "triangle") {
+    const right = s.shape === "right_triangle";
+    const ax = right ? 92 : 84;
+    const ay = 134;
+    const bx = right ? 214 : 216;
+    const by = 134;
+    const cx = right ? 214 : 132;
+    const cy = 48;
+    line(c, p, ax, ay, bx, by, al(0) * k0, col(0), k0, undefined, w(0));
+    line(c, p, bx, by, cx, cy, al(right ? 1 : 2) * k0, col(right ? 1 : 2), k0, undefined, w(right ? 1 : 2));
+    line(c, p, cx, cy, ax, ay, al(right ? 2 : 1) * k0, col(right ? 2 : 1), k0, undefined, w(right ? 2 : 1));
+    if (right) strokePts(c, p, [bx - 10, by, bx - 10, by - 10, bx, by - 10], 0.5 * k1);
+    if (has3(0)) label(c, p, font, L[0], (ax + bx) / 2, ay + 13, "center", tx(0), k1);
+    if (right) {
+      if (has3(1)) label(c, p, font, L[1], bx + 9, (by + cy) / 2, "left", tx(1), k1);
+      if (has3(2)) label(c, p, font, L[2], (ax + cx) / 2 - 9, (ay + cy) / 2 - 6, "right", tx(2), k1);
+      if (has3(3)) {
+        const ang = Math.atan2(ay - cy, cx - ax);
+        strokePts(c, p, arcPts(ax, ay, 24, -ang, 0, 10), al(3) * k1, col(3), w(3));
+        label(c, p, font, L[3], ax + 31, ay - 9, "left", tx(3), k1);
+      }
+    } else {
+      if (has3(1)) label(c, p, font, L[1], (ax + cx) / 2 - 9, (ay + cy) / 2, "right", tx(1), k1);
+      if (has3(2)) label(c, p, font, L[2], (bx + cx) / 2 + 9, (by + cy) / 2, "left", tx(2), k1);
+    }
+  } else if (s.shape === "circle") {
+    const cx = 150;
+    const cy = 88;
+    const r = 52;
+    if (on && s.lit === 2) halo(c, cx, cy, r, 0.5);
+    strokePts(c, p, arcPts(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + TAU * k0, 48), al(2) * k0, col(2), w(2));
+    dot(c, p, cx, cy, 2.4, k1);
+    if (has3(1)) {
+      line(c, p, cx - r, cy, cx + r, cy, al(1) * k1, col(1), k1, undefined, w(1));
+      label(c, p, font, L[1], cx - r / 2, cy + 12, "center", tx(1), k1);
+    }
+    if (has3(0)) {
+      const a = -Math.PI / 3.2;
+      line(c, p, cx, cy, cx + r * Math.cos(a), cy + r * Math.sin(a), al(0) * k1, col(0), k1, undefined, w(0));
+      label(c, p, font, L[0], cx + (r / 2) * Math.cos(a) - 7, cy + (r / 2) * Math.sin(a) - 4, "right", tx(0), k1);
+    }
+    if (has3(2)) label(c, p, font, L[2], cx + r * 0.8 + 8, cy - r * 0.72, "left", tx(2), k1);
+  } else if (s.shape === "rectangle") {
+    const x = 90;
+    const y = 50;
+    const rw = 120;
+    const rh = 80;
+    if (on && s.lit === 2) {
+      fill(p, BLUE, 0.14);
+      c.drawRRect(Skia.RRectXY(Skia.XYWHRect(x, y, rw, rh), 2, 2), p);
+    }
+    line(c, p, x, y + rh, x + rw, y + rh, al(0) * k0, col(0), k0, undefined, w(0));
+    line(c, p, x + rw, y + rh, x + rw, y, al(1) * k0, col(1), k0, undefined, w(1));
+    line(c, p, x + rw, y, x, y, 0.8 * k0, on && s.lit === 2 ? BLUE : SIL, k0);
+    line(c, p, x, y, x, y + rh, 0.8 * k0, on && s.lit === 2 ? BLUE : SIL, k0);
+    if (has3(0)) label(c, p, font, L[0], x + rw / 2, y + rh + 13, "center", tx(0), k1);
+    if (has3(1)) label(c, p, font, L[1], x + rw + 9, y + rh / 2, "left", tx(1), k1);
+    if (has3(2)) label(c, p, font, L[2], x + rw / 2, y + rh / 2, "center", tx(2), k1);
+  } else {
+    const vx = 100;
+    const vy = 130;
+    const ex = 222;
+    const ey = 130;
+    const fx = 188;
+    const fy = 50;
+    line(c, p, vx, vy, ex, ey, al(1) * k0, col(1), k0, undefined, w(1));
+    line(c, p, vx, vy, fx, fy, al(2) * k0, col(2), k0, undefined, w(2));
+    const ang = Math.atan2(vy - fy, fx - vx);
+    strokePts(c, p, arcPts(vx, vy, 30, -ang * k1, 0, 12), al(0) * k1, col(0), w(0));
+    if (has3(0)) label(c, p, font, L[0], vx + 40, vy - 14, "left", tx(0), k1);
+    if (has3(1)) label(c, p, font, L[1], (vx + ex) / 2 + 20, vy + 13, "center", tx(1), k1);
+    if (has3(2)) label(c, p, font, L[2], (vx + fx) / 2 - 9, (vy + fy) / 2 - 4, "right", tx(2), k1);
+  }
+}
+
+// ---- bonds: which atoms are joined, and how strongly? ----
+function bondXY(s: BondsScene): number[] {
+  "worklet";
+  const n = s.atoms.length;
+  const out: number[] = [];
+  const cx = 150;
+  const cy = 84;
+  if (s.shape === "bent") {
+    out.push(cx - 46, cy + 22, cx, cy - 12, cx + 46, cy + 22);
+  } else if (s.shape === "star") {
+    out.push(cx, cy);
+    const m = n - 1;
+    const start = m === 2 ? Math.PI : -Math.PI / 2;
+    for (let i = 0; i < m; i++) {
+      const a = start + (i * TAU) / m;
+      out.push(cx + 52 * Math.cos(a), cy + 46 * Math.sin(a));
+    }
+  } else if (s.shape === "ring") {
+    for (let i = 0; i < n; i++) {
+      const a = -Math.PI / 2 + (i * TAU) / n;
+      out.push(cx + 46 * Math.cos(a), cy + 44 * Math.sin(a));
+    }
+  } else {
+    const gap = Math.min(54, 230 / Math.max(1, n - 1));
+    for (let i = 0; i < n; i++) out.push(cx + (i - (n - 1) / 2) * gap, s.shape === "chain" ? cy + (i % 2 === 0 ? 12 : -12) : cy);
+  }
+  return out;
+}
+
+function drawBonds(c: SkCanvas, p: SkPaint, font: SkFont | null, s: BondsScene, changes: Change[], f: Frame) {
+  "worklet";
+  const stepping = hasKind(changes, "step");
+  const n = s.atoms.length;
+  const xy = bondXY(s);
+  const R = 11;
+  const pairs: number[] = [];
+  if (s.shape === "star") for (let i = 1; i < n; i++) pairs.push(0, i);
+  else {
+    for (let i = 0; i < n - 1; i++) pairs.push(i, i + 1);
+    if (s.shape === "ring") pairs.push(n - 1, 0);
+  }
+  const nb = pairs.length / 2;
+  for (let b = 0; b < nb; b++) {
+    const i = pairs[b * 2];
+    const j = pairs[b * 2 + 1];
+    const x1 = xy[i * 2];
+    const y1 = xy[i * 2 + 1];
+    const x2 = xy[j * 2];
+    const y2 = xy[j * 2 + 1];
+    const d = Math.sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1));
+    if (d < 1) continue;
+    const ux = (x2 - x1) / d;
+    const uy = (y2 - y1) / d;
+    const order = b < s.orders.length ? s.orders[b] : 1;
+    const k = beat(f, 1.2 + (b / nb) * 0.9, 3);
+    for (let o = 0; o < order; o++) {
+      const off = (o - (order - 1) / 2) * 4.6;
+      line(c, p, x1 + ux * (R + 2) - uy * off, y1 + uy * (R + 2) + ux * off, x2 - ux * (R + 2) - uy * off, y2 - uy * (R + 2) + ux * off, 0.7 * k, SIL, k);
+    }
+  }
+  const litI = stepping ? Math.min(n - 1, Math.floor(f.v * n)) : s.lit;
+  const kL = stepping ? 1 : beat(f, 2.7, 3);
+  for (let i = 0; i < n; i++) {
+    const k = beat(f, 0.3 + (i / n) * 0.9, 3);
+    const lit = i === litI && kL > 0.5;
+    if (lit) halo(c, xy[i * 2], xy[i * 2 + 1], R, 1);
+    ring(c, p, xy[i * 2], xy[i * 2 + 1], R, k * (lit ? 1 : 0.85), lit ? BLUE : SIL);
+    label(c, p, font, s.atoms[i], xy[i * 2], xy[i * 2 + 1], "center", SIL, k * (lit ? 1 : 0.85));
+  }
+  label(c, p, font, s.name, 150, 162, "center", LAB, beat(f, 2, 3));
+}
+
+// ---- lever: how does a small push lift a big load? ----
+// The effort needed is lit. It shrinks as the pivot moves towards the load.
+function drawLever(c: SkCanvas, p: SkPaint, font: SkFont | null, s: LeverScene, changes: Change[], f: Frame) {
+  "worklet";
+  const sliding = hasKind(changes, "slide");
+  const X0 = 56;
+  const X1 = 244;
+  const Y = 98;
+  const at = sliding ? 0.2 + 0.4 * f.v : s.at;
+  const px = X0 + at * (X1 - X0);
+  const k0 = beat(f, 0, 3);
+  const k1 = beat(f, 1, 3);
+  line(c, p, 36, Y + 22, 264, Y + 22, 0.3, SIL, k0);
+  strokePts(c, p, [px - 11, Y + 22, px, Y + 3, px + 11, Y + 22], 0.8 * k0);
+  line(c, p, X0 - 8, Y, X1 + 8, Y, 0.9, SIL, k1);
+  label(c, p, font, s.pivot, px, Y + 36, alignAt(px), LAB, k1);
+  // The load's arrow is fixed; the effort's is in true proportion to it (load arm over effort arm).
+  const LOAD = 44;
+  const effortLen = (a: number) => clamp((LOAD * a) / (1 - a), 8, 70);
+  const k2 = beat(f, 1.8, 3);
+  arrow(c, p, X0, Y - 8 - LOAD, X0, Y - 6, 0.85 * k2, SIL, k2);
+  label(c, p, font, s.load, X0 + 8, Y - 8 - LOAD, "left", LAB, k2);
+  if (sliding) {
+    const g = effortLen(s.at);
+    line(c, p, X1 + 7, Y - 8 - g, X1 + 7, Y - 6, 0.25, SIL, 1, [3, 6]);
+  }
+  const kL = sliding ? 1 : beat(f, 2.7, 3);
+  const len = effortLen(at);
+  arrow(c, p, X1, Y - 8 - len, X1, Y - 6, kL > 0.01 ? 1 : 0, BLUE, kL);
+  label(c, p, font, s.effort, X1 - 8, Y - 8 - len, "right", SIL, clamp(kL * 2 - 1));
+}
+
+// ---- working: what happens at each step? ----
+// Worked lines, one under the next. A lit dot marks the line being explained;
+// what was done to reach it is written beside it.
+function drawWorking(c: SkCanvas, p: SkPaint, font: SkFont | null, s: WorkingScene, changes: Change[], f: Frame) {
+  "worklet";
+  const stepping = hasKind(changes, "step");
+  const n = s.lines.length;
+  const pitch = Math.min(27, 124 / n);
+  const y0 = 88 - (pitch * (n - 1)) / 2;
+  const litI = stepping ? Math.min(n - 1, Math.floor(f.v * n)) : s.lit;
+  const kL = stepping ? 1 : beat(f, 2.7, 3);
+  const TX = 44;
+  const NX = 278;
+  line(c, p, 30, y0 - 4, 30, y0 + (n - 1) * pitch + 4, 0.26, SIL, beat(f, 0, 3));
+  for (let i = 0; i < n; i++) {
+    const y = y0 + i * pitch;
+    const k = stepping ? (i <= litI ? 1 : 0.3) : beat(f, 0.4 + (i / n) * 1.9, 3);
+    const lit = i === litI && kL > 0.5;
+    const nw = textW(font, s.lines[i].note);
+    if (lit) dot(c, p, 30, y, 3.6, 1, BLUE);
+    else dot(c, p, 30, y, 2.2, k * 0.7);
+    label(c, p, font, fitText(font, s.lines[i].text, NX - TX - nw - 14), TX, y, "left", SIL, k * (lit ? 1 : 0.72));
+    label(c, p, font, s.lines[i].note, NX, y, "right", LAB, k * (lit ? 1 : 0.7));
   }
 }
 
@@ -2664,6 +3417,48 @@ export function drawScene(canvas: SkCanvas, scene: Scene, changes: Change[], f: 
       break;
     case "things":
       drawThings(c, p, font, scene, changes, f);
+      break;
+    case "spectra":
+      drawSpectra(c, p, font, scene, changes, f);
+      break;
+    case "pattern":
+      drawPattern(c, p, font, scene, changes, f);
+      break;
+    case "machine":
+      drawMachine(c, p, font, scene, changes, f);
+      break;
+    case "case":
+      drawCase(c, p, font, scene, changes, f);
+      break;
+    case "forces":
+      drawForces(c, p, font, scene, changes, f);
+      break;
+    case "equation":
+      drawEquation(c, p, font, scene, changes, f);
+      break;
+    case "bridge":
+      drawBridge(c, p, font, scene, changes, f);
+      break;
+    case "spread":
+      drawSpread(c, p, font, scene, changes, f);
+      break;
+    case "scatter":
+      drawScatter(c, p, font, scene, changes, f);
+      break;
+    case "matrix":
+      drawMatrix(c, p, font, scene, changes, f);
+      break;
+    case "geometry":
+      drawGeometry(c, p, font, scene, changes, f);
+      break;
+    case "bonds":
+      drawBonds(c, p, font, scene, changes, f);
+      break;
+    case "lever":
+      drawLever(c, p, font, scene, changes, f);
+      break;
+    case "working":
+      drawWorking(c, p, font, scene, changes, f);
       break;
   }
 }

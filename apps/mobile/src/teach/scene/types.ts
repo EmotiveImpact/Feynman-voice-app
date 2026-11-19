@@ -26,9 +26,11 @@ export interface LinksScene {
   layout: "line" | "fork" | "loop" | "web";
   nodes: string[];
   links: { from: number; to: number; kind: "cause" | "flow" | "tie" }[];
+  /** loop layout only: a loop that builds on itself, or one that settles back. Older servers leave it out. */
+  feedback?: "reinforcing" | "balancing" | "";
 }
 
-export type Shape = "rise" | "fall" | "saturate" | "decay" | "bell" | "s_curve";
+export type Shape = "rise" | "fall" | "saturate" | "decay" | "bell" | "s_curve" | "grow" | "u_curve" | "cycle" | "steps";
 
 export interface GraphScene {
   family: "graph";
@@ -130,6 +132,9 @@ export interface UnitsScene {
   rest: string;
   /** A thing to count with instead of dots (person, coin), or "". Older servers leave it out. */
   thing?: string;
+  /** A second group among the rest, drawn as rings (people who test positive without the disease). Older servers leave it out. */
+  also?: number;
+  alsoLabel?: string;
 }
 
 /** Which one stands out from many. */
@@ -280,6 +285,136 @@ export interface ThingsScene {
   lit: number;
 }
 
+/** Where one thing sits on several scales at once. */
+export interface SpectraScene {
+  family: "spectra";
+  item: string;
+  rows: { left: string; right: string; at: number }[];
+  lit: number;
+}
+
+/** What comes next: a run of terms with one gap, then its answer. */
+export interface PatternScene {
+  family: "pattern";
+  items: string[];
+  gap: number;
+  answer: string;
+  rule: string;
+}
+
+/** What goes in, what is done to it, what comes out. */
+export interface MachineScene {
+  family: "machine";
+  name: string;
+  inputs: string[];
+  outputs: string[];
+  lit: number;
+}
+
+/** A claim, the reasons under it, and one objection. lit -1 is the objection. */
+export interface CaseScene {
+  family: "case";
+  claim: string;
+  reasons: string[];
+  objection: string;
+  lit: number;
+}
+
+/** Pushes and pulls on one object, and what they add up to. */
+export interface ForcesScene {
+  family: "forces";
+  object: string;
+  forces: { label: string; dir: "up" | "down" | "left" | "right"; size: number }[];
+  result: string;
+}
+
+export type Sign = "plus" | "minus" | "times" | "over" | "equals" | "gives" | "both";
+
+/** Terms joined by signs: a reaction, a formula, an identity. */
+export interface EquationScene {
+  family: "equation";
+  terms: { label: string; note: string }[];
+  signs: Sign[];
+  lit: number;
+}
+
+/** What maps to what: two sets and the links between them. */
+export interface BridgeScene {
+  family: "bridge";
+  leftTitle: string;
+  rightTitle: string;
+  left: string[];
+  right: string[];
+  maps: { from: number; to: number }[];
+  lit: number;
+}
+
+/** How values are spread: dots piled into a shape. */
+export interface SpreadScene {
+  family: "spread";
+  x: string;
+  shape: "normal" | "skew_right" | "skew_left" | "uniform" | "bimodal";
+  lit: "middle" | "left_tail" | "right_tail" | "outlier" | "width";
+  label: string;
+}
+
+/** Do two things go together: a cloud of points and its trend. */
+export interface ScatterScene {
+  family: "scatter";
+  x: string;
+  y: string;
+  trend: "up" | "down" | "none";
+  strength: "strong" | "weak";
+  lit: "line" | "outlier";
+  label: string;
+}
+
+/** Every combination of two choices: a small table, one cell lit. Cells row by row. */
+export interface MatrixScene {
+  family: "matrix";
+  rowTitle: string;
+  colTitle: string;
+  rows: string[];
+  cols: string[];
+  cells: string[];
+  litRow: number;
+  litCol: number;
+}
+
+/** A plain shape with its parts named. */
+export interface GeometryScene {
+  family: "geometry";
+  shape: "right_triangle" | "triangle" | "circle" | "rectangle" | "angle";
+  labels: string[];
+  lit: number;
+}
+
+/** Atoms and the bonds between them. */
+export interface BondsScene {
+  family: "bonds";
+  shape: "line" | "bent" | "star" | "chain" | "ring";
+  atoms: string[];
+  orders: number[];
+  lit: number;
+  name: string;
+}
+
+/** A small push far from the pivot lifts a big load near it. at: where the pivot sits, 0 (at the load) to 1. */
+export interface LeverScene {
+  family: "lever";
+  load: string;
+  effort: string;
+  pivot: string;
+  at: number;
+}
+
+/** Worked steps, one line at a time: algebra, a proof, a trace through code. */
+export interface WorkingScene {
+  family: "working";
+  lines: { text: string; note: string }[];
+  lit: number;
+}
+
 export type Scene =
   | ParticlesScene
   | LinksScene
@@ -310,12 +445,27 @@ export type Scene =
   | ZoomScene
   | BraceScene
   | MapScene
-  | ThingsScene;
+  | ThingsScene
+  | SpectraScene
+  | PatternScene
+  | MachineScene
+  | CaseScene
+  | ForcesScene
+  | EquationScene
+  | BridgeScene
+  | SpreadScene
+  | ScatterScene
+  | MatrixScene
+  | GeometryScene
+  | BondsScene
+  | LeverScene
+  | WorkingScene;
 
 /** The families this build of the app can draw. A newer server may send others: those fall back to the simple diagram. */
 export const DRAWABLE: readonly string[] = [
   "particles", "links", "graph", "balance", "compare", "stairs", "spectrum", "venn", "pair", "tree", "test", "threshold", "units", "crowd",
   "grid", "timeline", "layers", "wave", "mirror", "stack", "radial", "cutaway", "funnel", "sankey", "fan", "spiral", "zoom", "brace", "map", "things",
+  "spectra", "pattern", "machine", "case", "forces", "equation", "bridge", "spread", "scatter", "matrix", "geometry", "bonds", "lever", "working",
 ];
 
 /** True when this build can draw the scene: a known family, and every thing in it known. */

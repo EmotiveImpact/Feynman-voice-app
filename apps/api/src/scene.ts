@@ -1,9 +1,11 @@
 // Drawn scenes for Teach me. The lesson writer never draws pixels: for each
-// bite it fills in one scene from a fixed kit (thirty families covering
-// thirty-four devices: scale, comparison, path, fork, loop, network,
+// bite it fills in one scene from a fixed kit (forty-four families covering
+// forty-eight devices: scale, comparison, path, fork, loop, network,
 // container, plot, stairs, spectrum, Venn, balance, pair, tree, test,
 // threshold, units, crowd, grid, timeline, layers, wave, mirror, stack,
-// radial, cutaway, funnel, sankey, fan, spiral, zoom, brace, map and things),
+// radial, cutaway, funnel, sankey, fan, spiral, zoom, brace, map, things,
+// and since v10 spectra, pattern, machine, case, forces, equation, bridge,
+// spread, scatter, matrix, geometry, bonds, lever and working),
 // and the app draws it live with Skia. Things are drawn objects (people,
 // planets, cells, coins, buildings, metaphors) from the same few marks.
 // The look follows the principles of Visual Value, softened for Fenny: one
@@ -18,13 +20,14 @@
 export const FAMILIES = [
   "particles", "links", "graph", "balance", "compare", "stairs", "spectrum", "venn", "pair", "tree", "test", "threshold", "units", "crowd",
   "grid", "timeline", "layers", "wave", "mirror", "stack", "radial", "cutaway", "funnel", "sankey", "fan", "spiral", "zoom", "brace", "map", "things",
+  "spectra", "pattern", "machine", "case", "forces", "equation", "bridge", "spread", "scatter", "matrix", "geometry", "bonds", "lever", "working",
 ] as const;
 export const MARKS = ["dot", "ring", "blocked"] as const;
 export const MOTIONS = ["still", "drift", "jiggle", "cross", "rise", "fall", "orbit", "pulse", "flow"] as const;
 export const DIVIDERS = ["none", "wall", "membrane", "sieve"] as const;
 export const LAYOUTS = ["line", "fork", "loop", "web"] as const;
 export const LINK_KINDS = ["cause", "flow", "tie"] as const;
-export const SHAPES = ["rise", "fall", "saturate", "decay", "bell", "s_curve"] as const;
+export const SHAPES = ["rise", "fall", "saturate", "decay", "bell", "s_curve", "grow", "u_curve", "cycle", "steps"] as const;
 export const HIGHLIGHTS = ["ride", "crossing", "half", "end", "none"] as const;
 export const CHANGES = ["appear", "cross", "speed", "grow", "step", "shift", "stretch", "ride", "weigh", "climb", "slide", "overlap", "fill"] as const;
 export const COMPARE_STYLES = ["circles", "bars"] as const;
@@ -38,6 +41,18 @@ export const LAYER_STYLES = ["stack", "nested"] as const;
 export const WAVE_KINDS = ["transverse", "longitudinal"] as const;
 export const STACK_ACTIONS = ["push", "pop"] as const;
 export const THING_LAYOUTS = ["row", "versus", "chain", "orbit", "scale", "parts"] as const;
+/** A loop that builds on itself, or one that settles back. "" for any other links scene. */
+export const FEEDBACKS = ["", "reinforcing", "balancing"] as const;
+export const FORCE_DIRS = ["up", "down", "left", "right"] as const;
+/** What joins two terms of an equation. gives is an arrow, both a reaction that runs both ways. */
+export const SIGNS = ["plus", "minus", "times", "over", "equals", "gives", "both"] as const;
+export const SPREAD_SHAPES = ["normal", "skew_right", "skew_left", "uniform", "bimodal"] as const;
+export const SPREAD_LITS = ["middle", "left_tail", "right_tail", "outlier", "width"] as const;
+export const TRENDS = ["up", "down", "none"] as const;
+export const STRENGTHS = ["strong", "weak"] as const;
+export const SCATTER_LITS = ["line", "outlier"] as const;
+export const GEOMETRY_SHAPES = ["right_triangle", "triangle", "circle", "rectangle", "angle"] as const;
+export const BOND_SHAPES = ["line", "bent", "star", "chain", "ring"] as const;
 /** Where a named part sits on a drawn thing, for the parts layout. */
 export const PART_SPOTS = ["top", "bottom", "left", "right", "top left", "top right", "bottom left", "bottom right", "centre"] as const;
 /** Every drawn thing the app knows (apps/mobile/src/teach/scene/things.ts), by group. A test keeps the two lists the same. */
@@ -81,6 +96,8 @@ export interface LinksScene {
   layout: (typeof LAYOUTS)[number];
   nodes: string[];
   links: { from: number; to: number; kind: (typeof LINK_KINDS)[number] }[];
+  /** Loop layout with 3 or more nodes: which kind of feedback loop it is, or "". */
+  feedback: (typeof FEEDBACKS)[number];
 }
 export interface GraphScene {
   family: "graph";
@@ -177,6 +194,9 @@ export interface UnitsScene {
   rest: string;
   /** A thing to count with instead of dots (person, coin), or "". */
   thing: string;
+  /** A second group among the rest, drawn as rings: how many in 100, or 0. */
+  also: number;
+  alsoLabel: string;
 }
 /** Which one stands out from many: grey lines, one lit and named. */
 export interface CrowdScene {
@@ -316,6 +336,121 @@ export interface ThingsScene {
   parts: { label: string; at: (typeof PART_SPOTS)[number] }[];
   lit: number;
 }
+/** Where one thing sits on several scales at once: 2 to 4 rows, one lit. */
+export interface SpectraScene {
+  family: "spectra";
+  item: string;
+  rows: { left: string; right: string; at: number }[];
+  lit: number;
+}
+/** What comes next: a run of terms with one gap, then its answer. */
+export interface PatternScene {
+  family: "pattern";
+  items: string[];
+  gap: number;
+  answer: string;
+  rule: string;
+}
+/** What goes in, what is done to it, what comes out. */
+export interface MachineScene {
+  family: "machine";
+  name: string;
+  inputs: string[];
+  outputs: string[];
+  lit: number;
+}
+/** A claim, the reasons under it, and one objection. lit -1 is the objection. */
+export interface CaseScene {
+  family: "case";
+  claim: string;
+  reasons: string[];
+  objection: string;
+  lit: number;
+}
+/** Pushes and pulls on one object, and what they add up to. */
+export interface ForcesScene {
+  family: "forces";
+  object: string;
+  forces: { label: string; dir: (typeof FORCE_DIRS)[number]; size: number }[];
+  result: string;
+}
+/** Terms joined by signs: a reaction, a formula, an identity. */
+export interface EquationScene {
+  family: "equation";
+  terms: { label: string; note: string }[];
+  signs: (typeof SIGNS)[number][];
+  lit: number;
+}
+/** What maps to what: two sets and the links between them. */
+export interface BridgeScene {
+  family: "bridge";
+  leftTitle: string;
+  rightTitle: string;
+  left: string[];
+  right: string[];
+  maps: { from: number; to: number }[];
+  lit: number;
+}
+/** How values are spread: dots piled into a shape, one part lit. */
+export interface SpreadScene {
+  family: "spread";
+  x: string;
+  shape: (typeof SPREAD_SHAPES)[number];
+  lit: (typeof SPREAD_LITS)[number];
+  label: string;
+}
+/** Do two things go together: a cloud of points and its trend. */
+export interface ScatterScene {
+  family: "scatter";
+  x: string;
+  y: string;
+  trend: (typeof TRENDS)[number];
+  strength: (typeof STRENGTHS)[number];
+  lit: (typeof SCATTER_LITS)[number];
+  label: string;
+}
+/** Every combination of two choices: a small table, one cell lit. Cells row by row. */
+export interface MatrixScene {
+  family: "matrix";
+  rowTitle: string;
+  colTitle: string;
+  rows: string[];
+  cols: string[];
+  cells: string[];
+  litRow: number;
+  litCol: number;
+}
+/** A plain shape with its parts named. */
+export interface GeometryScene {
+  family: "geometry";
+  shape: (typeof GEOMETRY_SHAPES)[number];
+  labels: string[];
+  lit: number;
+}
+/** Atoms and the bonds between them. */
+export interface BondsScene {
+  family: "bonds";
+  shape: (typeof BOND_SHAPES)[number];
+  atoms: string[];
+  orders: number[];
+  lit: number;
+  name: string;
+}
+/** A small push far from the pivot lifts a big load near it. */
+export interface LeverScene {
+  family: "lever";
+  load: string;
+  effort: string;
+  pivot: string;
+  /** Where the pivot sits along the beam, 0.2 (by the load) to 0.6 (past the middle). */
+  at: number;
+}
+/** Worked steps, one line at a time. */
+export interface WorkingScene {
+  family: "working";
+  lines: { text: string; note: string }[];
+  lit: number;
+}
 export type Scene =
   | ParticlesScene
   | LinksScene
@@ -346,7 +481,21 @@ export type Scene =
   | ZoomScene
   | BraceScene
   | MapScene
-  | ThingsScene;
+  | ThingsScene
+  | SpectraScene
+  | PatternScene
+  | MachineScene
+  | CaseScene
+  | ForcesScene
+  | EquationScene
+  | BridgeScene
+  | SpreadScene
+  | ScatterScene
+  | MatrixScene
+  | GeometryScene
+  | BondsScene
+  | LeverScene
+  | WorkingScene;
 
 export interface Play {
   prompt: string;
@@ -381,6 +530,7 @@ export const SCENE_SCHEMA = {
       layout: en(LAYOUTS),
       nodes: strs,
       links: { type: "array", items: obj({ from: int, to: int, kind: en(LINK_KINDS) }) },
+      feedback: en(FEEDBACKS),
     }),
     obj({
       family: en(["graph"]),
@@ -403,7 +553,7 @@ export const SCENE_SCHEMA = {
     obj({ family: en(["tree"]), root: str, branches: { type: "array", items: obj({ label: str, leaves: strs }) }, lit: obj({ branch: int, leaf: int }) }),
     obj({ family: en(["test"]), case: str, gates: strs, fails: int, outcome: str }),
     obj({ family: en(["threshold"]), level: str, line: str, at: num, value: num }),
-    obj({ family: en(["units"]), lit: int, label: str, rest: str, thing: str }),
+    obj({ family: en(["units"]), lit: int, label: str, rest: str, thing: str, also: int, alsoLabel: str }),
     obj({ family: en(["crowd"]), x: str, y: str, count: int, crowd: en(CROWD_SHAPES), lit: str, litShape: en(STANDOUT_SHAPES) }),
     obj({ family: en(["grid"]), x: str, y: str, quadrants: strs, item: str, atX: num, atY: num }),
     obj({ family: en(["timeline"]), events: arr(obj({ label: str, when: str, t: num })), scale: en(TIMELINE_SCALES), at: int }),
@@ -421,6 +571,20 @@ export const SCENE_SCHEMA = {
     obj({ family: en(["brace"]), items: strs, groups: arr(obj({ label: str, from: int, to: int })), lit: int }),
     obj({ family: en(["map"]), places: arr(obj({ label: str, x: num, y: num })), routes: arr(obj({ from: int, to: int })), lit: int }),
     obj({ family: en(["things"]), layout: en(THING_LAYOUTS), items: arr(obj({ thing: str, label: str, size: num })), parts: arr(obj({ label: str, at: en(PART_SPOTS) })), lit: int }),
+    obj({ family: en(["spectra"]), item: str, rows: arr(obj({ left: str, right: str, at: num })), lit: int }),
+    obj({ family: en(["pattern"]), items: strs, gap: int, answer: str, rule: str }),
+    obj({ family: en(["machine"]), name: str, inputs: strs, outputs: strs, lit: int }),
+    obj({ family: en(["case"]), claim: str, reasons: strs, objection: str, lit: int }),
+    obj({ family: en(["forces"]), object: str, forces: arr(obj({ label: str, dir: en(FORCE_DIRS), size: int })), result: str }),
+    obj({ family: en(["equation"]), terms: arr(obj({ label: str, note: str })), signs: arr(en(SIGNS)), lit: int }),
+    obj({ family: en(["bridge"]), leftTitle: str, rightTitle: str, left: strs, right: strs, maps: arr(obj({ from: int, to: int })), lit: int }),
+    obj({ family: en(["spread"]), x: str, shape: en(SPREAD_SHAPES), lit: en(SPREAD_LITS), label: str }),
+    obj({ family: en(["scatter"]), x: str, y: str, trend: en(TRENDS), strength: en(STRENGTHS), lit: en(SCATTER_LITS), label: str }),
+    obj({ family: en(["matrix"]), rowTitle: str, colTitle: str, rows: strs, cols: strs, cells: strs, litRow: int, litCol: int }),
+    obj({ family: en(["geometry"]), shape: en(GEOMETRY_SHAPES), labels: strs, lit: int }),
+    obj({ family: en(["bonds"]), shape: en(BOND_SHAPES), atoms: strs, orders: arr(int), lit: int, name: str }),
+    obj({ family: en(["lever"]), load: str, effort: str, pivot: str, at: num }),
+    obj({ family: en(["working"]), lines: arr(obj({ text: str, note: str })), lit: int }),
     { type: "null" },
   ],
 } as const;
@@ -445,7 +609,7 @@ const THING_MENU = Object.entries(THING_GROUPS)
 export const SCENE_PROMPT = `Each bite also gets a scene: one small live drawing that makes one point. You do not draw. You pick one device and fill in its slots, and the app draws it in Fenny's style (soft silver lines on near-black, one thing lit, built in a few beats). Use a scene for almost every bite. Use null only when no device fits, and then the picture field is used instead.
 
 How to choose, in this order:
-1. Find the question the idea answers (who or what, how much, where, when, how, why). Who or what: things (show the real object, person or place). How much: compare, spectrum, graph, units, cutaway, funnel or things with layout scale. When: timeline, links line or stairs. Where: map, grid or layers. How: links, particles, wave, loop or things with layout chain or orbit. Why: graph or balance. What kind: tree, venn, brace or pair.
+1. Find the question the idea answers (who or what, how much, where, when, how, why). Who or what: things (show the real object, person or place), geometry or bonds. How much: compare, spectrum, graph, units, cutaway, funnel, spread, scatter or things with layout scale. When: timeline, links line or stairs. Where: map, grid or layers. How: links, particles, wave, loop, machine, working, lever or things with layout chain or orbit. Why: graph, balance, forces or case. What kind: tree, venn, brace, pair, matrix or bridge. What comes next: pattern. What is it made of: equation or cutaway.
 2. If the idea is "the difference between X and Y", use pair.
 3. If no picture comes to mind, turn the key sentence into a chart: "A and B overlap" is a venn, "more X gives more Y" is a graph.
 4. Check it before you answer. Clear at a glance? Builds left to right in the order it is spoken? Uses a real example the student knows? Simple but never wrong, so a lecturer could not mark it wrong? If any answer is no, simplify or use null.
@@ -485,11 +649,25 @@ Pick the device by the question the idea answers:
 - Where are places, and what moves between them (a trade route, a migration, a campaign)? map.
 - What does it look like, who is involved, or what real object is it (the Earth and Moon, a cell, a bank and a factory)? things.
 - What are its parts, and where are they (a labelled diagram, a metaphor with named parts)? things with layout parts.
+- Where does one thing sit on several scales at once (a research method judged on depth, cost and reach)? spectra.
+- What comes next, or what rule does a run follow (a number series, half-lives, a periodic trend, a chord progression)? pattern.
+- What goes in, what is done to it, and what comes out (photosynthesis, an enzyme, a function, a court)? machine.
+- What supports a claim, and what stands against it (an argument, a legal submission, an essay's thesis)? case.
+- What pushes and pulls on one thing, and what do they add up to (a free body diagram, pressures on a price)? forces.
+- What combines into what, or what is a formula made of (a chemical reaction, F = ma, profit = revenue - cost)? equation.
+- What maps to what between two sets (a function, an analogy, codons to amino acids, words in two languages)? bridge.
+- How are the values spread (a normal distribution, skewed incomes, an outlier, a tail)? spread.
+- Do two things go together, and how tightly (a correlation)? scatter.
+- What happens for every combination of two choices (a Punnett square, a payoff matrix, a truth table, true and false positives)? matrix.
+- What are the parts of a plain shape (a right-angled triangle, a circle, a rectangle, an angle)? geometry.
+- Which atoms are joined, and by what bonds (water, carbon dioxide, methane, benzene)? bonds.
+- How does a small push move a big load (moments, mechanical advantage, gearing)? lever.
+- What happens at each step of working something out (solving an equation, a proof, a calculation, tracing code)? working.
 
 The devices:
 particles: zones (1 to 3 area labels, left to right, "" for none), divider (none, wall, membrane = dashed and crossable, sieve = gaps), things (1 to 3 groups: name, mark dot = something that moves, ring = an object, blocked = something stopped, at most one group; count 1 to 16; zone it starts in; to = zone it heads to, same as zone if it stays; motion still, drift, jiggle like heat, cross from zone to "to", rise, fall, orbit, pulse, flow).
-links: layout line, fork, loop or web. nodes 2 to 7 labels. links from and to node indexes, in the order they happen, kind cause (one light travels the cause links in the order listed, lighting each node it reaches, so list them in the order things happen), flow (stream of dots), tie (faint dashed bond, like an alliance).
-graph: x and y axis labels. curves 1 or 2: name, shape (rise, fall = straight lines, saturate = rises then levels off, decay = falls then levels off, bell, s_curve), label of 1 or 2 letters or a short word. highlight ride (a lit point travels the curve), crossing (where two curves meet), half (half height of a saturate curve, like Km), end (value at the right), none.
+links: layout line, fork, loop or web. nodes 2 to 7 labels. links from and to node indexes, in the order they happen, kind cause (one light travels the cause links in the order listed, lighting each node it reaches, so list them in the order things happen), flow (stream of dots), tie (faint dashed bond, like an alliance). feedback: for a loop of 3 or more nodes that is a feedback loop, reinforcing (each time round makes it stronger, like a bank run) or balancing (it pulls back to a set level, like a thermostat or homeostasis); "" for everything else.
+graph: x and y axis labels. curves 1 or 2: name, shape (rise, fall = straight lines, saturate = rises then levels off, decay = falls then levels off, bell, s_curve, grow = compounding, slow then steep, u_curve = high, low, then high again, cycle = up and down in waves, like a business cycle, steps = jumps between flat levels), label of 1 or 2 letters or a short word. highlight ride (a lit point travels the curve), crossing (where two curves meet), half (half height of a saturate curve, like Km), end (value at the right), none.
 balance: left and right labels, leftWeight and rightWeight 0 to 6, middle = a short label under the pivot or "".
 compare: style circles or bars. items 2 to 6 with a label and a positive value in real proportion (Earth 1, Sun 109). The biggest or most important item is lit.
 stairs: steps 2 to 6 labels, bottom step first. at = index of the step that is lit.
@@ -519,7 +697,21 @@ map: places 2 to 6 (label, x = 0 west to 1 east, y = 0 south to 1 north, rough r
 things: drawn objects, people and places from the list below, each with a label (1 to 3 words) and a size. layout row (1 to 5 things side by side: examples of a kind, or one big picture), versus (exactly 2, set against each other), chain (2 to 4, each becoming or causing the next, joined by arrows), orbit (2 or 3: item 1 goes round item 0, and item 2 goes round item 1, like the Sun, Earth and Moon), scale (2 to 4 drawn at their real relative sizes standing on one line; size = a real number in one unit, smallest first), parts (exactly 1 thing drawn big, with parts = 2 to 4 of its named parts, each with a label of 1 to 4 words and at = where that part sits on the drawing: top, bottom, left, right, top left, top right, bottom left, bottom right or centre, each spot once; only when they really are parts of that drawn thing, where the drawing shows them, never labels hung on a symbol like a bulb or a book). size is 1 for other layouts. parts is [] for every layout but parts. lit = index of the lit thing, or for parts the index of the lit part. Only use names from this list; if nothing in it is the thing, use another device:
 ${THING_MENU}
   A metaphor (iceberg, dominoes, snowball, ladder, bridge and so on) only when the notes use that image or it is the standard teaching image for the idea, never as decoration.
-units: also thing = a thing from the list to count with instead of dots (person for people, coin for money), or "".
+units: also thing = a thing from the list to count with instead of dots (person for people, coin for money), or "". also and alsoLabel: a second group among the rest, drawn as rings (out of 100 people, 1 is ill and tests positive, lit, and 9 are well but test positive, also); 0 and "" when there is no second group.
+spectra: item = what is placed (1 to 4 words), rows 2 to 4 scales (left and right end labels of 1 or 2 words, at = where the item sits, 0 left to 1 right), lit = index of the row that decides.
+pattern: items 3 to 7 terms in order, 1 or 2 short words or a number each, with "?" where the gap is, gap = index of the gap, answer = what fills it, rule = the rule in 2 to 6 words ("Halves each half-life"). The answer and rule must be true.
+machine: name = what does the work (1 to 3 words), inputs 1 to 3 and outputs 1 to 3 labels (1 to 3 words), lit = index of the output the lesson is about.
+case: claim = the conclusion (2 to 5 words), reasons 1 to 3 that support it (1 to 3 words each; 2 at most with an objection), objection = one point against it or "", lit = index of the reason the lesson turns on, or -1 for the objection.
+forces: object = what the forces act on, forces 2 to 4 (label, dir up, down, left or right, size 1 to 5 in real proportion), result = what happens (1 to 3 words: "Speeds up", "Steady speed", "Sinks"). The app adds them up and lights the resultant, or the object if they cancel.
+equation: terms 2 to 5 in reading order (label = a symbol, formula or word up to 10 letters, like "2H₂", "F" or "Revenue"; note = its name in 1 or 2 words, or ""), signs = one fewer than terms, the sign between each pair (plus, minus, times, over, equals, gives = an arrow, both = a reaction that runs both ways), lit = index of the term the lesson is about. It must balance and be correct.
+bridge: leftTitle and rightTitle name the two sets, left 2 to 4 and right 1 to 4 labels (1 or 2 words), maps 1 to 6 (from = left index, to = right index), lit = index of the map the lesson is about. Several on the left may map to one on the right.
+spread: x = what is measured, shape (normal, skew_right = a long tail of high values, skew_left = a long tail of low values, uniform, bimodal = two humps), lit = the part the lesson is about (middle = the average, left_tail, right_tail, outlier = one case far from the rest, width = how spread out), label = its name in 1 to 5 words.
+scatter: x and y axis labels, trend (up, down, none), strength (strong = points hug the line, weak = a loose cloud), lit line (the trend) or outlier (one point that does not fit), label = what the lit thing is in 1 to 4 words ("Strong positive", "No link").
+matrix: rowTitle and colTitle name the two choices, rows 2 or 3 and cols 2 or 3 labels (1 or 2 short words), cells = every cell, row by row (rows times cols of them, 1 or 2 short words each), litRow and litCol = the cell the lesson is about.
+geometry: shape and labels in a fixed order, "" to leave one out. right_triangle: base, upright, hypotenuse, the angle at the base. triangle: bottom, left side, right side. circle: radius, diameter, circumference. rectangle: width, height, area. angle: the angle, lower arm, upper arm. lit = index of the labelled part the lesson is about.
+bonds: shape line (2 to 4 atoms in a row, like O=C=O), bent (exactly 3, the middle one first raised, like water: H, O, H), star (atom 0 in the centre and 2 to 5 round it, like methane), chain (3 to 6 in a zigzag, like a carbon chain) or ring (3 to 6 in a closed ring). atoms = element symbols in drawing order. orders = the bond between each pair in order, 1 single, 2 double, 3 triple (star: centre to each; ring: one more to close it). lit = index of the atom the lesson is about. name = the molecule's name. Only real molecules with their real bonds.
+lever: load, effort and pivot = labels (1 or 2 words), at = where the pivot sits along the beam, 0.2 (close to the load, so the effort is small) to 0.5 (the middle, so the effort equals the load) to 0.6.
+working: lines 2 to 5 in order (text = the line as written, up to 26 characters, like "2x + 3 = 11"; note = what was done to get it, 2 to 5 words, "" for the first), lit = index of the line the lesson is about. Every line must follow from the one before.
 
 play: at most one bite per lesson (usually the first or second) gets a slider that changes its scene, so the student tries the idea with their own hands. Others get null.
   prompt: an instruction under 8 words, like "Add sugar to the right." low and high: 1 to 3 word slider end labels.
@@ -536,6 +728,8 @@ play: at most one bite per lesson (usually the first or second) gets a slider th
     grid: slide (the item moves from the opposite corner to its place). wave: speed (higher frequency), stretch (longer wavelength), grow (bigger amplitude). fan: grow (the forecast's spread widens).
     timeline, layers, mirror, stack, radial, cutaway, funnel, sankey, spiral, zoom, brace and map: step (the light moves through the parts in order).
     things: step (the light moves through the things in order, or through the parts), speed (for orbit: it goes round faster).
+    spectra, machine, case, equation, bridge, matrix, bonds and working: step (the light moves through the parts in order). pattern: step (the answer lands in the gap).
+    forces: grow (the last force listed grows from nothing to its size, and the resultant changes with it). lever: slide (the pivot moves from the load end to the effort end). spread and scatter: grow (the sample grows from a few points to all of them).
 
 caption: one short sentence under 9 words that states the point, ending with a full stop, like "Water follows the sugar."
 
@@ -549,6 +743,7 @@ What makes a good scene:
 - Plan the pictures first: devices lists the device for each bite, in order, all different (or none). Then write each bite's scene with its planned device. Most ideas fit more than one device honestly, so the student sees something new every time.
 - links is the device most often reached for and most often the wrong one. Use it only when the idea really is a chain of causes or a network, and at most once a lesson. Before links, check: levels climbed in order (stairs), dates (timeline), stages gone round (radial with cycle), how many out of how many (units), a tipping point (threshold), a range (spectrum), a real object or person (things).
 - Never the same device twice in one lesson, pair and things included.
+- Near neighbours. equation or machine: equation when the terms themselves combine, machine when one thing does the work. case or test: a case weighs reasons for a claim, a test runs one thing through fixed conditions. bridge or mirror: mirror for one to one partners, bridge when several map to one. spread or a bell graph: spread when it is about cases or people, graph for a law. scatter or graph: scatter for data and how tightly it follows, graph for the relationship itself. matrix or grid: a matrix says what happens in each cell, a grid places one item. spectra or spectrum: one scale is a spectrum. working or links: working for written lines of maths, logic or code. forces or balance: forces act on one object in directions, a balance weighs two sides.
 - compare is for real quantities in one unit. Without real numbers, choose by the question the idea answers instead.
 - If no device honestly fits, use null. A wrong picture is worse than none.
 
@@ -584,6 +779,24 @@ Climbing Everest: {"family":"things","layout":"scale","items":[{"thing":"person"
 Visible and hidden costs: {"family":"things","layout":"row","items":[{"thing":"iceberg","label":"Most costs are hidden","size":1}],"parts":[],"lit":0}
 Viruses and bacteria: {"family":"things","layout":"versus","items":[{"thing":"virus","label":"Virus","size":1},{"thing":"bacterium","label":"Bacterium","size":1}],"parts":[],"lit":0}
 The iceberg model of culture: {"family":"things","layout":"parts","items":[{"thing":"iceberg","label":"Culture","size":1}],"parts":[{"label":"Food and dress","at":"top"},{"label":"Values and beliefs","at":"bottom"}],"lit":1}
+Interviews as a research method: {"family":"spectra","item":"Interviews","rows":[{"left":"Shallow","right":"Deep","at":0.9},{"left":"Cheap","right":"Costly","at":0.7},{"left":"Few people","right":"Many people","at":0.15}],"lit":0}
+Radioactive decay: {"family":"pattern","items":["80","40","20","?","5"],"gap":3,"answer":"10","rule":"Halves each half-life"}
+Photosynthesis: {"family":"machine","name":"Chloroplast","inputs":["Light","Water","Carbon dioxide"],"outputs":["Glucose","Oxygen"],"lit":0}
+Duress in contract law: {"family":"case","claim":"The contract binds","reasons":["Offer accepted","Consideration given"],"objection":"Signed under duress","lit":-1}
+Terminal velocity: {"family":"forces","object":"Skydiver","forces":[{"label":"Weight","dir":"down","size":4},{"label":"Air resistance","dir":"up","size":4}],"result":"Steady speed"} play {"prompt":"Let the air resistance build.","low":"Just jumped","high":"Terminal velocity","readouts":["Only weight acts, so the skydiver speeds up.","Air resistance grows with speed, so the net force shrinks.","The two forces cancel. Speed stays steady."],"changes":[{"target":"","does":"grow"}]}
+Making water: {"family":"equation","terms":[{"label":"2H₂","note":"Hydrogen"},{"label":"O₂","note":"Oxygen"},{"label":"2H₂O","note":"Water"}],"signs":["plus","gives"],"lit":2}
+Newton's second law: {"family":"equation","terms":[{"label":"F","note":"Force"},{"label":"m","note":"Mass"},{"label":"a","note":"Acceleration"}],"signs":["equals","times"],"lit":0}
+The genetic code is redundant: {"family":"bridge","leftTitle":"Codon","rightTitle":"Amino acid","left":["AUG","GGU","GGC"],"right":["Methionine","Glycine"],"maps":[{"from":0,"to":0},{"from":1,"to":1},{"from":2,"to":1}],"lit":2}
+Income distribution: {"family":"spread","x":"Household income","shape":"skew_right","lit":"right_tail","label":"A few very high incomes"}
+Revision and marks: {"family":"scatter","x":"Hours revised","y":"Exam mark","trend":"up","strength":"weak","lit":"line","label":"Weak positive"}
+A monohybrid cross: {"family":"matrix","rowTitle":"Mother","colTitle":"Father","rows":["B","b"],"cols":["B","b"],"cells":["BB","Bb","Bb","bb"],"litRow":1,"litCol":1}
+Sine, cosine and tangent: {"family":"geometry","shape":"right_triangle","labels":["Adjacent","Opposite","Hypotenuse","θ"],"lit":2}
+Why water is polar: {"family":"bonds","shape":"bent","atoms":["H","O","H"],"orders":[1,1],"lit":1,"name":"Water"}
+Moments: {"family":"lever","load":"Load","effort":"Effort","pivot":"Pivot","at":0.25} play {"prompt":"Move the pivot.","low":"By the load","high":"Past the middle","readouts":["The pivot is close to the load, so a small push lifts it.","The pivot nears the middle, so the push must nearly match the load.","Past the middle, you must push harder than the load itself."],"changes":[{"target":"","does":"slide"}]}
+Solving a linear equation: {"family":"working","lines":[{"text":"2x + 3 = 11","note":""},{"text":"2x = 8","note":"Take 3 from both sides"},{"text":"x = 4","note":"Divide both sides by 2"}],"lit":2}
+Compound interest: {"family":"graph","x":"Years","y":"Savings","curves":[{"name":"savings","shape":"grow","label":""}],"highlight":"ride"}
+A bank run: {"family":"links","layout":"loop","nodes":["Fear","Withdrawals","Low reserves"],"links":[{"from":0,"to":1,"kind":"cause"},{"from":1,"to":2,"kind":"cause"},{"from":2,"to":0,"kind":"cause"}],"feedback":"reinforcing"}
+A positive test for a rare disease: {"family":"units","lit":1,"label":"ill, test positive","rest":"well, test negative","thing":"","also":9,"alsoLabel":"well, test positive"}
 Weather and climate: {"family":"pair","left":{"label":"Weather","shape":"jagged","count":0,"note":"Day to day"},"right":{"label":"Climate","shape":"smooth","count":0,"note":"Over 30 years"},"lit":"right"}`;
 
 // ---- checking ----
@@ -651,6 +864,20 @@ const ALLOWED: Record<Scene["family"], readonly Play["changes"][number]["does"][
   brace: ["step"],
   map: ["step"],
   things: ["step", "speed"],
+  spectra: ["step"],
+  pattern: ["step"],
+  machine: ["step"],
+  case: ["step"],
+  forces: ["grow"],
+  equation: ["step"],
+  bridge: ["step"],
+  spread: ["grow"],
+  scatter: ["grow"],
+  matrix: ["step"],
+  geometry: [],
+  bonds: ["step"],
+  lever: ["slide"],
+  working: ["step"],
 };
 /** Families whose slider changes name a thing in the scene. All others use "". */
 const NAMED_TARGETS: readonly string[] = ["particles", "graph", "balance", "compare"];
@@ -706,7 +933,8 @@ export function checkScene(s: unknown): Scene | null {
         .map((l: Record<string, unknown>) => ({ from: ni(l.from), to: ni(l.to), kind: oneOf(l.kind, LINK_KINDS, "cause") }))
         .filter((l) => l.from !== l.to);
       if (!links.length) return null;
-      return { family: "links", layout: oneOf(r.layout, LAYOUTS, "line"), nodes, links };
+      const layout = oneOf(r.layout, LAYOUTS, "line");
+      return { family: "links", layout, nodes, links, feedback: layout === "loop" && nodes.length > 2 ? oneOf(r.feedback, FEEDBACKS, "") : "" };
     }
     if (r.family === "graph") {
       const curves = (Array.isArray(r.curves) ? r.curves : []).slice(0, 2).map((c: Record<string, unknown>, i) => ({
@@ -796,7 +1024,10 @@ export function checkScene(s: unknown): Scene | null {
     if (r.family === "units") {
       const label = short(r.label, 4, 26);
       if (!label) return null;
-      return { family: "units", lit: clampInt(r.lit, 1, 99, 10), label, rest: short(r.rest, 4, 26), thing: isThing(r.thing) ? (r.thing as string) : "" };
+      const lit = clampInt(r.lit, 1, 99, 10);
+      const alsoLabel = short(r.alsoLabel, 4, 26);
+      const also = alsoLabel ? clampInt(r.also, 0, 99 - lit, 0) : 0;
+      return { family: "units", lit, label, rest: short(r.rest, 4, 26), thing: isThing(r.thing) ? (r.thing as string) : "", also, alsoLabel: also ? alsoLabel : "" };
     }
     if (r.family === "crowd") {
       const lit = short(r.lit, 2);
@@ -950,6 +1181,122 @@ export function checkScene(s: unknown): Scene | null {
         return { family: "things", layout, items, parts, lit: clampInt(r.lit, 0, parts.length - 1, 0) };
       }
       return { family: "things", layout, items, parts: [], lit: clampInt(r.lit, 0, items.length - 1, items.length - 1) };
+    }
+    if (r.family === "spectra") {
+      const rows = (Array.isArray(r.rows) ? r.rows : [])
+        .slice(0, 4)
+        .map((x: Record<string, unknown>) => ({ left: short(x?.left, 2, 14), right: short(x?.right, 2, 14), at: num01(x?.at, 0.5, 0.04, 0.96) }))
+        .filter((x) => x.left && x.right);
+      if (rows.length < 2) return null;
+      return { family: "spectra", item: short(r.item, 4, 28), rows, lit: clampInt(r.lit, 0, rows.length - 1, 0) };
+    }
+    if (r.family === "pattern") {
+      const items = (Array.isArray(r.items) ? r.items : []).slice(0, 7).map((v) => short(v, 2, 8) || "?");
+      const answer = short(r.answer, 2, 8);
+      if (items.length < 3 || !answer) return null;
+      // The gap is where the writer put the question mark, if it put one.
+      const marked = items.indexOf("?");
+      const gap = marked >= 0 ? marked : clampInt(r.gap, 0, items.length - 1, items.length - 1);
+      return { family: "pattern", items: items.map((v, i) => (i === gap ? "?" : v)), gap, answer, rule: short(r.rule, 6, 34) };
+    }
+    if (r.family === "machine") {
+      const name = short(r.name, 3, 16);
+      const inputs = labels(r.inputs, 3);
+      const outputs = labels(r.outputs, 3);
+      if (!name || !inputs.length || !outputs.length) return null;
+      return { family: "machine", name, inputs, outputs, lit: clampInt(r.lit, 0, outputs.length - 1, 0) };
+    }
+    if (r.family === "case") {
+      const claim = short(r.claim, 5, 34);
+      const objection = short(r.objection, 3, 20);
+      const reasons = (Array.isArray(r.reasons) ? r.reasons : []).map((v) => short(v, 3, 20)).filter(Boolean).slice(0, objection ? 2 : 3);
+      if (!claim || !reasons.length || reasons.length + (objection ? 1 : 0) < 2) return null;
+      return { family: "case", claim, reasons, objection, lit: clampInt(r.lit, objection ? -1 : 0, reasons.length - 1, 0) };
+    }
+    if (r.family === "forces") {
+      const forces = (Array.isArray(r.forces) ? r.forces : [])
+        .filter((x: Record<string, unknown>) => x && (FORCE_DIRS as readonly string[]).includes(x.dir as string))
+        .slice(0, 4)
+        .map((x: Record<string, unknown>) => ({ label: short(x.label, 2, 16), dir: x.dir as (typeof FORCE_DIRS)[number], size: clampInt(x.size, 1, 5, 3) }))
+        .filter((x) => x.label);
+      if (forces.length < 2) return null;
+      return { family: "forces", object: short(r.object, 2, 14), forces, result: short(r.result, 3, 22) };
+    }
+    if (r.family === "equation") {
+      const terms = (Array.isArray(r.terms) ? r.terms : [])
+        .slice(0, 5)
+        .map((x: Record<string, unknown>) => ({ label: short(x?.label, 2, 10), note: short(x?.note, 2, 14) }))
+        .filter((x) => x.label);
+      if (terms.length < 2) return null;
+      const raw = Array.isArray(r.signs) ? r.signs : [];
+      const signs = terms.slice(1).map((_, i) => oneOf(raw[i], SIGNS, i === terms.length - 2 ? "equals" : "plus"));
+      return { family: "equation", terms, signs, lit: clampInt(r.lit, 0, terms.length - 1, terms.length - 1) };
+    }
+    if (r.family === "bridge") {
+      const left = (Array.isArray(r.left) ? r.left : []).map((v) => short(v, 2, 14)).filter(Boolean).slice(0, 4);
+      const right = (Array.isArray(r.right) ? r.right : []).map((v) => short(v, 2, 14)).filter(Boolean).slice(0, 4);
+      if (left.length < 2 || !right.length) return null;
+      const seen = new Set<string>();
+      const maps = (Array.isArray(r.maps) ? r.maps : [])
+        .map((x: Record<string, unknown>) => ({ from: Math.round(Number(x?.from)), to: Math.round(Number(x?.to)) }))
+        .filter((x) => x.from >= 0 && x.from < left.length && x.to >= 0 && x.to < right.length && !seen.has(`${x.from}>${x.to}`) && seen.add(`${x.from}>${x.to}`))
+        .slice(0, 6);
+      if (!maps.length) return null;
+      return { family: "bridge", leftTitle: short(r.leftTitle, 2, 14), rightTitle: short(r.rightTitle, 2, 14), left, right, maps, lit: clampInt(r.lit, 0, maps.length - 1, 0) };
+    }
+    if (r.family === "spread") {
+      const lit = oneOf(r.lit, SPREAD_LITS, "middle");
+      const fallback = { middle: "Average", left_tail: "Lowest few", right_tail: "Highest few", outlier: "Outlier", width: "Spread" }[lit];
+      return { family: "spread", x: short(r.x, 3), shape: oneOf(r.shape, SPREAD_SHAPES, "normal"), lit, label: short(r.label, 5, 30) || fallback };
+    }
+    if (r.family === "scatter") {
+      const trend = oneOf(r.trend, TRENDS, "up");
+      // No trend has no line to stray from, so nothing can be an outlier.
+      const lit = trend === "none" ? "line" : oneOf(r.lit, SCATTER_LITS, "line");
+      return { family: "scatter", x: short(r.x), y: short(r.y), trend, strength: trend === "none" ? "weak" : oneOf(r.strength, STRENGTHS, "strong"), lit, label: short(r.label, 4, 24) || (trend === "none" ? "No link" : lit === "outlier" ? "Outlier" : "Trend") };
+    }
+    if (r.family === "matrix") {
+      const rows = (Array.isArray(r.rows) ? r.rows : []).map((v) => short(v, 2, 14)).filter(Boolean).slice(0, 3);
+      const cols = (Array.isArray(r.cols) ? r.cols : []).map((v) => short(v, 2, 12)).filter(Boolean).slice(0, 3);
+      if (rows.length < 2 || cols.length < 2) return null;
+      const cells = (Array.isArray(r.cells) ? r.cells : []).slice(0, rows.length * cols.length).map((v) => short(v, 2, 12));
+      // A table with holes says less than no table.
+      if (cells.length < rows.length * cols.length || cells.some((v) => !v)) return null;
+      return { family: "matrix", rowTitle: short(r.rowTitle, 2, 16), colTitle: short(r.colTitle, 2, 16), rows, cols, cells, litRow: clampInt(r.litRow, 0, rows.length - 1, 0), litCol: clampInt(r.litCol, 0, cols.length - 1, 0) };
+    }
+    if (r.family === "geometry") {
+      const shape = oneOf(r.shape, GEOMETRY_SHAPES, "right_triangle");
+      const max = shape === "right_triangle" ? 4 : 3;
+      const list = (Array.isArray(r.labels) ? r.labels : []).slice(0, max).map((v) => short(v, 2, 14));
+      while (list.length < max) list.push("");
+      const named = list.map((v, i) => (v ? i : -1)).filter((i) => i >= 0);
+      if (!named.length) return null;
+      const lit = clampInt(r.lit, 0, max - 1, named[0]);
+      return { family: "geometry", shape, labels: list, lit: list[lit] ? lit : named[0] };
+    }
+    if (r.family === "bonds") {
+      const atoms = (Array.isArray(r.atoms) ? r.atoms : []).map((v) => short(v, 1, 3)).filter(Boolean).slice(0, 6);
+      if (atoms.length < 2) return null;
+      let shape = oneOf(r.shape, BOND_SHAPES, "line");
+      // Each shape only holds so many atoms; anything else is drawn as a row or a zigzag.
+      if (shape === "bent" && atoms.length !== 3) shape = "line";
+      if ((shape === "star" || shape === "chain" || shape === "ring") && atoms.length < 3) shape = "line";
+      if (shape === "line" && atoms.length > 4) shape = "chain";
+      const count = shape === "ring" ? atoms.length : atoms.length - 1;
+      const raw = Array.isArray(r.orders) ? r.orders : [];
+      const orders = Array.from({ length: count }, (_, i) => clampInt(raw[i], 1, 3, 1));
+      return { family: "bonds", shape, atoms, orders, lit: clampInt(r.lit, 0, atoms.length - 1, 0), name: short(r.name, 3, 24) };
+    }
+    if (r.family === "lever") {
+      return { family: "lever", load: short(r.load, 2, 14) || "Load", effort: short(r.effort, 2, 14) || "Effort", pivot: short(r.pivot, 2, 14) || "Pivot", at: num01(r.at, 0.3, 0.2, 0.6) };
+    }
+    if (r.family === "working") {
+      const lines = (Array.isArray(r.lines) ? r.lines : [])
+        .slice(0, 5)
+        .map((x: Record<string, unknown>) => ({ text: short(x?.text, 12, 26), note: short(x?.note, 5, 26) }))
+        .filter((x) => x.text);
+      if (lines.length < 2) return null;
+      return { family: "working", lines, lit: clampInt(r.lit, 0, lines.length - 1, lines.length - 1) };
     }
     if (r.family === "venn") {
       const a = short(r.a);
