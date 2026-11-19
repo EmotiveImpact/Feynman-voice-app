@@ -21,11 +21,13 @@
 // The panel is 300 x 176; the view scales it to fit the screen.
 import { Skia, type SkCanvas, type SkFont, type SkPaint } from "@shopify/react-native-skia";
 
+import { BODY_FRAMES, BODY_PARTS } from "./bodyparts";
 import { hasThing, isPerson } from "./kit";
 import { KIT_FACES, KIT_HATS, KIT_POSES, KIT_SHELLS } from "./kitparts";
+import { OUTLINES } from "./outlines";
 import { THINGS, type ThingMark } from "./things";
 
-import type { StageScene, QuoteScene, BalanceScene, BondsScene, BraceScene, BridgeScene, CaseScene, Change, EquationScene, ForcesScene, GeometryScene, LeverScene, MachineScene, MatrixScene, PatternScene, ScatterScene, SpectraScene, SpreadScene, WorkingScene, CompareScene, CrowdScene, CutawayScene, FanScene, FunnelScene, GraphScene, GridScene, LayersScene, LinksScene, MapScene, MirrorScene, PairScene, PairSide, ParticlesScene, RadialScene, SankeyScene, Scene, Shape, SpectrumScene, SpiralScene, StackScene, StairsScene, TestScene, ThingsScene, ThresholdScene, TimelineScene, TreeScene, UnitsScene, VennScene, WaveScene, ZoomScene } from "./types";
+import type { BodyScene, CircuitScene, ColoursScene, StaveScene, TableScene, StageScene, QuoteScene, BalanceScene, BondsScene, BraceScene, BridgeScene, CaseScene, Change, EquationScene, ForcesScene, GeometryScene, LeverScene, MachineScene, MatrixScene, PatternScene, ScatterScene, SpectraScene, SpreadScene, WorkingScene, CompareScene, CrowdScene, CutawayScene, FanScene, FunnelScene, GraphScene, GridScene, LayersScene, LinksScene, MapScene, MirrorScene, PairScene, PairSide, ParticlesScene, RadialScene, SankeyScene, Scene, Shape, SpectrumScene, SpiralScene, StackScene, StairsScene, TestScene, ThingsScene, ThresholdScene, TimelineScene, TreeScene, UnitsScene, VennScene, WaveScene, ZoomScene } from "./types";
 
 export const VIEW_W = 300;
 
@@ -1259,6 +1261,20 @@ function strokePts(c: SkCanvas, p: SkPaint, pts: number[], a: number, colour = S
   c.drawPath(path.build(), p);
 }
 
+/** Many separate lines in one go (a coastline): each entry is a flat list of x, y. */
+function strokeLines(c: SkCanvas, p: SkPaint, lines: number[][], a: number, colour = SIL, w = W0, dash?: number[]) {
+  "worklet";
+  if (a <= 0.01 || !lines.length) return;
+  const path = Skia.PathBuilder.Make();
+  for (let j = 0; j < lines.length; j++) {
+    const pts = lines[j];
+    path.moveTo(wx(p, pts[0], pts[1]), wy(p, pts[0], pts[1]));
+    for (let i = 2; i < pts.length; i += 2) path.lineTo(wx(p, pts[i], pts[i + 1]), wy(p, pts[i], pts[i + 1]));
+  }
+  stroke(p, colour, a, w, dash);
+  c.drawPath(path.build(), p);
+}
+
 /** A filled shape through points. */
 function fillPts(c: SkCanvas, p: SkPaint, pts: number[], a: number, colour: string) {
   "worklet";
@@ -2036,17 +2052,24 @@ function drawBrace(c: SkCanvas, p: SkPaint, font: SkFont | null, s: BraceScene, 
 function drawMap(c: SkCanvas, p: SkPaint, font: SkFont | null, s: MapScene, changes: Change[], f: Frame) {
   "worklet";
   const stepping = hasKind(changes, "step");
-  const L = 44;
-  const R = 256;
-  const T = 26;
-  const B = 146;
+  // With a region the real coastline is drawn and places sit at their true spots.
+  const o = s.region ? OUTLINES[s.region] : undefined;
+  const L = o ? o.x : 44;
+  const R = o ? o.x + o.w : 256;
+  const T = o ? o.y : 26;
+  const B = o ? o.y + o.h : 146;
   const px = (i: number) => L + s.places[i].x * (R - L);
   const py = (i: number) => B - s.places[i].y * (B - T);
   const k0 = beat(f, 0, 3);
-  stroke(p, SIL, 0.12 * k0);
-  c.drawRRect(Skia.RRectXY(Skia.XYWHRect(L - 26, T - 16, R - L + 52, B - T + 32), 14, 14), p);
-  line(c, p, R + 14, T + 4, R + 14, T - 6, 0.5 * k0, SIL);
-  label(c, p, font, "N", R + 14, T + 13, "center", LAB, k0);
+  if (o) {
+    strokeLines(c, p, o.coast, 0.4 * k0, SIL, 1.1);
+    if (s.borders) strokeLines(c, p, o.borders, 0.22 * k0, SIL, 0.8, [1.5, 3]);
+  } else {
+    stroke(p, SIL, 0.12 * k0);
+    c.drawRRect(Skia.RRectXY(Skia.XYWHRect(L - 26, T - 16, R - L + 52, B - T + 32), 14, 14), p);
+    line(c, p, R + 14, T + 4, R + 14, T - 6, 0.5 * k0, SIL);
+    label(c, p, font, "N", R + 14, T + 13, "center", LAB, k0);
+  }
   const m = s.routes.length;
   // A route bows a little to the left of its direction of travel.
   const curve = (j: number, u: number) => {
@@ -2092,9 +2115,10 @@ function drawMap(c: SkCanvas, p: SkPaint, font: SkFont | null, s: MapScene, chan
   for (let i = 0; i < s.places.length; i++) {
     const k = beat(f, 0.4 + (i / s.places.length) * 0.8, 3);
     const lit = i === s.lit && arrived;
-    dot(c, p, px(i), py(i), 4.5, k, PANEL);
-    if (lit) dot(c, p, px(i), py(i), 4.8, 1, BLUE);
-    else ring(c, p, px(i), py(i), 4.5, k);
+    const pr = o ? 3.4 : 4.5;
+    dot(c, p, px(i), py(i), pr, k, PANEL);
+    if (lit) dot(c, p, px(i), py(i), pr + 0.3, 1, BLUE);
+    else ring(c, p, px(i), py(i), pr, k);
     // The name goes on whichever side (right, left, above, below) crosses the
     // fewest routes and stays on the panel.
     const w = textW(font, s.places[i].label);
@@ -2118,7 +2142,8 @@ function drawMap(c: SkCanvas, p: SkPaint, font: SkFont | null, s: MapScene, chan
       }
     }
     const al = best === 0 ? "left" : best === 1 ? "right" : "center";
-    fitLabel(c, p, font, s.places[i].label, cx[best], cy[best], al, lit ? SIL : LAB, k, 104);
+    if (o) knockLabel(c, p, font, fitText(font, s.places[i].label, 104), cx[best], cy[best], al, lit ? SIL : LAB, k);
+    else fitLabel(c, p, font, s.places[i].label, cx[best], cy[best], al, lit ? SIL : LAB, k, 104);
   }
 }
 
@@ -3471,6 +3496,498 @@ function drawQuote(c: SkCanvas, p: SkPaint, font: SkFont | null, s: QuoteScene, 
   rawLabel(c, p, font, s.by, 286, 166, "right", LAB, 0.8 * beat(f, 1.2, 3));
 }
 
+// ---- body: where is it in the body? ----
+// The figure (or the brain) drawn quietly, with only the named parts drawn on
+// it, each where it really is, and its name out at the side on a leader line.
+function drawBody(c: SkCanvas, p: SkPaint, font: SkFont | null, s: BodyScene, changes: Change[], f: Frame) {
+  "worklet";
+  const stepping = hasKind(changes, "step");
+  const brain = s.view === "brain";
+  const whole = s.view === "whole";
+  const X = 150;
+  const Y = brain ? 84 : whole ? 13 : 9;
+  const H = brain ? 60 : whole ? 150 : 262;
+  const half = brain ? 60 : whole ? 28 : 48;
+  const n = s.parts.length;
+  const litI = stepping ? Math.min(n - 1, Math.floor(f.v * n)) : s.lit;
+  const kL = stepping ? 1 : beat(f, 2.7, 3);
+  drawMarks(c, p, BODY_FRAMES[brain ? "brain" : "body"], X, Y, H, 0.36, SIL, beat(f, 0, 3), 1.2, 1, 99);
+  // Each name goes out to the side its part is on; a part on the midline, or a pair, takes the emptier side.
+  const side: number[] = [];
+  const ax: number[] = [];
+  const ay: number[] = [];
+  let nl = 0;
+  let nr = 0;
+  for (let i = 0; i < n; i++) {
+    const q = BODY_PARTS[s.parts[i].part];
+    const at = q ? q.at : [0, 0];
+    let j = 0;
+    let sd = at[0] < 0 ? -1 : 1;
+    if (at.length >= 4) {
+      sd = nl <= nr ? -1 : 1;
+      j = sd < 0 ? 0 : 2;
+    } else if (Math.abs(at[0]) * H < 5 || (sd < 0 ? nl : nr) >= 3) sd = nl <= nr ? -1 : 1;
+    if (sd < 0) nl++;
+    else nr++;
+    side.push(sd);
+    ax.push(X + at[j] * H);
+    ay.push(Y + at[j + 1] * H);
+  }
+  const maxW = X - half - 22;
+  const ly: number[] = [];
+  for (let i = 0; i < n; i++) ly.push(ay[i]);
+  for (let sd = -1; sd <= 1; sd += 2) {
+    // The names on one side, top to bottom, pushed apart until none touch.
+    const ids: number[] = [];
+    for (let i = 0; i < n; i++) if (side[i] === sd) ids.push(i);
+    for (let a = 1; a < ids.length; a++) for (let b = a; b > 0 && ay[ids[b]] < ay[ids[b - 1]]; b--) {
+      const t = ids[b];
+      ids[b] = ids[b - 1];
+      ids[b - 1] = t;
+    }
+    const tall = (i: number) => (textW(font, s.parts[i].label) > maxW ? 6 : 0);
+    for (let a = 0; a < ids.length; a++) {
+      const i = ids[a];
+      ly[i] = Math.max(14 + tall(i), Math.min(162 - tall(i), ay[i]));
+      if (a > 0) ly[i] = Math.max(ly[i], ly[ids[a - 1]] + 14 + tall(i) + tall(ids[a - 1]));
+    }
+    for (let a = ids.length - 1; a >= 0; a--) {
+      const i = ids[a];
+      const cap = a === ids.length - 1 ? 162 - tall(i) : ly[ids[a + 1]] - 14 - tall(i) - tall(ids[a + 1]);
+      if (ly[i] > cap) ly[i] = cap;
+    }
+  }
+  for (let i = 0; i < n; i++) {
+    const q = BODY_PARTS[s.parts[i].part];
+    if (!q) continue;
+    const k = stepping ? 1 : beat(f, 0.8 + (i / n) * 1.4, 3);
+    const lit = i === litI && kL > 0.5;
+    if (lit) thingHalo(c, ax[i] - side[i] * (brain ? 0 : 5), ay[i], 12, kL);
+    drawMarks(c, p, q.m, X, Y, H, lit ? 1 : brain ? 0.5 : 0.78, lit ? BLUE : SIL, k, lit ? W0 : 1.25, 1, 99);
+    const lx = X + side[i] * (half + 16);
+    line(c, p, ax[i], ay[i], lx - side[i] * 4, ly[i], 0.3 * k, lit ? BLUE : SIL, k, undefined, 1);
+    dot(c, p, ax[i], ay[i], 1.8, k, lit ? BLUE : SIL);
+    label2(c, p, font, s.parts[i].label, lx, ly[i], side[i] < 0 ? "right" : "left", lit ? SIL : LAB, k, maxW);
+  }
+}
+
+// ---- circuit: what is wired to what? ----
+/** Half the width a circuit symbol takes out of its wire. */
+function symbolHalf(kind: string) {
+  "worklet";
+  if (kind === "cell") return 3;
+  if (kind === "capacitor") return 2.5;
+  if (kind === "battery") return 10;
+  if (kind === "diode" || kind === "led") return 5.5;
+  if (kind === "buzzer") return 7;
+  if (kind === "switch_open" || kind === "switch_closed") return 8;
+  if (kind === "resistor" || kind === "variable_resistor" || kind === "fuse" || kind === "thermistor" || kind === "ldr") return 11;
+  return 8;
+}
+
+/** One standard circuit symbol, centred on (x, y) on a wire running left to right. */
+function circuitSymbol(c: SkCanvas, p: SkPaint, font: SkFont | null, kind: string, x: number, y: number, a: number, colour: string, closed: boolean) {
+  "worklet";
+  if (a <= 0.01) return;
+  if (kind === "cell" || kind === "battery") {
+    const xs = kind === "cell" ? [x - 3, x + 3] : [x - 10, x - 4.5, x + 4.5, x + 10];
+    for (let i = 0; i < xs.length; i++) {
+      // The long thin plate is positive, the short thick one negative.
+      if (i % 2 === 0) line(c, p, xs[i], y - 8, xs[i], y + 8, a, colour);
+      else line(c, p, xs[i], y - 4.5, xs[i], y + 4.5, a, colour, 1, undefined, W0 + 1.4);
+    }
+    if (kind === "battery") line(c, p, x - 4.5, y, x + 4.5, y, a * 0.8, colour, 1, [1.5, 3]);
+  } else if (kind === "capacitor") {
+    line(c, p, x - 2.5, y - 7, x - 2.5, y + 7, a, colour);
+    line(c, p, x + 2.5, y - 7, x + 2.5, y + 7, a, colour);
+  } else if (kind === "resistor" || kind === "variable_resistor" || kind === "fuse" || kind === "thermistor" || kind === "ldr") {
+    stroke(p, colour, a);
+    c.drawRRect(Skia.RRectXY(Skia.XYWHRect(x - 11, y - 4.5, 22, 9), 1, 1), p);
+    if (kind === "fuse") line(c, p, x - 11, y, x + 11, y, a * 0.8, colour);
+    if (kind === "variable_resistor") arrow(c, p, x - 10, y + 9, x + 10, y - 9, a, colour);
+    if (kind === "thermistor") strokePts(c, p, [x - 13, y + 9, x - 7, y + 9, x + 9, y - 9], a, colour);
+    if (kind === "ldr") {
+      arrow(c, p, x - 14, y - 17, x - 7, y - 8, a, colour);
+      arrow(c, p, x - 6, y - 18, x + 1, y - 9, a, colour);
+    }
+  } else if (kind === "switch_open" || kind === "switch_closed") {
+    dot(c, p, x - 8, y, 1.8, a, colour);
+    dot(c, p, x + 8, y, 1.8, a, colour);
+    if (closed) line(c, p, x - 8, y, x + 8, y, a, colour);
+    else line(c, p, x - 8, y, x + 6, y - 8.5, a, colour);
+  } else if (kind === "diode" || kind === "led") {
+    strokePts(c, p, [x - 5.5, y - 6, x + 5.5, y, x - 5.5, y + 6, x - 5.5, y - 6], a, colour);
+    line(c, p, x + 5.5, y - 6, x + 5.5, y + 6, a, colour);
+    if (kind === "led") {
+      arrow(c, p, x + 1, y - 9, x + 6, y - 15, a, colour);
+      arrow(c, p, x + 7, y - 8, x + 12, y - 14, a, colour);
+    }
+  } else if (kind === "buzzer") {
+    strokePts(c, p, arcPts(x, y, 7, Math.PI, TAU, 14), a, colour);
+    line(c, p, x - 7, y, x + 7, y, a, colour);
+  } else {
+    // A ring with a mark inside: a lamp, a meter, a motor or an a.c. supply.
+    fill(p, PANEL, a);
+    c.drawCircle(x, y, 8, p);
+    ring(c, p, x, y, 8, a, colour);
+    if (kind === "bulb") {
+      line(c, p, x - 5.6, y - 5.6, x + 5.6, y + 5.6, a, colour);
+      line(c, p, x - 5.6, y + 5.6, x + 5.6, y - 5.6, a, colour);
+    } else if (kind === "ac_supply") {
+      const pts: number[] = [];
+      for (let i = 0; i <= 12; i++) pts.push(x - 5 + (i / 12) * 10, y - Math.sin((i / 12) * TAU) * 3);
+      strokePts(c, p, pts, a, colour);
+    } else rawLabel(c, p, font, kind === "ammeter" ? "A" : kind === "voltmeter" ? "V" : "M", x, y, "center", colour, a);
+  }
+}
+
+function drawCircuit(c: SkCanvas, p: SkPaint, font: SkFont | null, s: CircuitScene, changes: Change[], f: Frame) {
+  "worklet";
+  const stepping = hasKind(changes, "step");
+  const n = s.parts.length;
+  // Rung 0 is the top wire. With no parallel branches the supply and switches sit on top and the rest along the bottom.
+  let top = 0;
+  for (let i = 0; i < n; i++) top = Math.max(top, s.parts[i].branch);
+  const rungOf: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const kd = s.parts[i].kind;
+    const supply = kd === "cell" || kd === "battery" || kd === "ac_supply" || kd === "switch_open" || kd === "switch_closed";
+    rungOf.push(top > 0 ? s.parts[i].branch : supply ? 0 : 1);
+  }
+  let rungs = 0;
+  for (let i = 0; i < n; i++) rungs = Math.max(rungs, rungOf[i]);
+  rungs = Math.max(1, rungs);
+  const L = 62;
+  const R = 238;
+  const T = rungs >= 3 ? 38 : 44;
+  const B = rungs === 1 ? 124 : rungs === 2 ? 140 : 152;
+  const ry = (r: number) => T + ((B - T) * r) / rungs;
+  const count: number[] = [];
+  for (let r = 0; r <= rungs; r++) count.push(0);
+  for (let i = 0; i < n; i++) count[rungOf[i]]++;
+  const seen: number[] = [];
+  for (let r = 0; r <= rungs; r++) seen.push(0);
+  const cx: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const r = rungOf[i];
+    seen[r]++;
+    cx.push(L + ((R - L) * seen[r]) / (count[r] + 1));
+  }
+  const shut = stepping ? f.v >= 0.5 : false;
+  const open: boolean[] = [];
+  for (let r = 0; r <= rungs; r++) open.push(false);
+  let ac = false;
+  for (let i = 0; i < n; i++) if (s.parts[i].kind === "ac_supply") ac = true;
+  for (let i = 0; i < n; i++) {
+    const kd = s.parts[i].kind;
+    // No steady current through an open switch, a voltmeter, or a capacitor on a d.c. supply.
+    if ((kd === "switch_open" && !shut) || kd === "voltmeter" || (kd === "capacitor" && !ac)) open[rungOf[i]] = true;
+  }
+  const live = (r: number) => !open[0] && !open[r] && (top > 0 || !open[1]);
+  const k0 = beat(f, 0, 3);
+  const litI = s.lit;
+  const kL = beat(f, 2.7, 3);
+  // Wires: the two rails, then each rung with gaps where its symbols sit.
+  line(c, p, L, T, L, B, 0.5 * k0, SIL, k0);
+  line(c, p, R, T, R, B, 0.5 * k0, SIL, k0);
+  for (let r = 0; r <= rungs; r++) {
+    let x = L;
+    for (let i = 0; i < n; i++) {
+      if (rungOf[i] !== r) continue;
+      const h = symbolHalf(s.parts[i].kind);
+      line(c, p, x, ry(r), cx[i] - h, ry(r), 0.5 * k0, SIL, k0);
+      x = cx[i] + h;
+    }
+    line(c, p, x, ry(r), R, ry(r), 0.5 * k0, SIL, k0);
+    if (r > 0 && r < rungs) {
+      dot(c, p, L, ry(r), 2, k0 * 0.8);
+      dot(c, p, R, ry(r), 2, k0 * 0.8);
+    }
+  }
+  for (let i = 0; i < n; i++) {
+    const r = rungOf[i];
+    const k = beat(f, 0.7 + (i / n) * 1.3, 3);
+    const lit = i === litI && kL > 0.5;
+    const y = ry(r);
+    if (lit) thingHalo(c, cx[i], y, 13, kL);
+    circuitSymbol(c, p, font, s.parts[i].kind, cx[i], y, lit ? 1 : 0.85 * k, lit ? BLUE : SIL, shut);
+    // A lamp with current through it shines.
+    if (s.parts[i].kind === "bulb" && live(r) && k > 0.9) {
+      for (let j = 0; j < 5; j++) {
+        const an = Math.PI * (1.1 + j * 0.2);
+        line(c, p, cx[i] + Math.cos(an) * 11, y + Math.sin(an) * 11, cx[i] + Math.cos(an) * 14.5, y + Math.sin(an) * 14.5, 0.55, lit ? BLUE : SIL);
+      }
+    }
+    const tall = s.parts[i].kind === "bulb" || s.parts[i].kind === "ldr" || s.parts[i].kind === "led" ? 4 : 0;
+    // With three rungs there is no room under a symbol, so its name sits just past it, above the wire.
+    if (rungs >= 3 && r > 0) fitLabel(c, p, font, s.parts[i].label, cx[i] + symbolHalf(s.parts[i].kind) + (tall ? 10 : 6), y - 9, "left", lit ? SIL : LAB, k, (R - L) / (count[r] + 1) - symbolHalf(s.parts[i].kind) - 14);
+    else fitLabel(c, p, font, s.parts[i].label, cx[i], r === 0 ? y - 16 - tall : y + 16, "center", lit ? SIL : LAB, k, (R - L) / (count[r] + 0.4) - 4);
+  }
+  // Current: small dots going round each closed loop, out of the long plate of the supply and back to the short one.
+  if (f.still || k0 < 1) return;
+  for (let r = 1; r <= rungs; r++) {
+    if (!live(r)) continue;
+    const yr = ry(r);
+    const len = 2 * (R - L) + 2 * (yr - T);
+    const gap = 30;
+    const m = Math.floor(len / gap);
+    for (let j = 0; j < m; j++) {
+      const d = (j * gap + f.T * 22) % len;
+      let x = 0;
+      let y = 0;
+      let on = 0;
+      if (d < yr - T) {
+        x = L;
+        y = T + d;
+      } else if (d < yr - T + (R - L)) {
+        x = L + d - (yr - T);
+        y = yr;
+        on = r;
+      } else if (d < 2 * (yr - T) + (R - L)) {
+        x = R;
+        y = yr - (d - (yr - T) - (R - L));
+      } else {
+        x = R - (d - 2 * (yr - T) - (R - L));
+        y = T;
+      }
+      let hid = false;
+      for (let i = 0; i < n; i++) if (rungOf[i] === on && Math.abs(y - ry(on)) < 0.5 && Math.abs(x - cx[i]) < symbolHalf(s.parts[i].kind) + 3) hid = true;
+      if (!hid) dot(c, p, x, y, 1.5, 0.6);
+    }
+  }
+}
+
+// ---- table: what is in each row? ----
+// A verb table, a truth table, a trace table. One row on its own is drawn as
+// boxes in a line: an array in memory, with the column names as its indexes.
+function drawTable(c: SkCanvas, p: SkPaint, font: SkFont | null, s: TableScene, changes: Change[], f: Frame) {
+  "worklet";
+  const stepping = hasKind(changes, "step");
+  const nr = s.rows.length;
+  const nc = s.cols.length;
+  const boxes = nr === 1;
+  const w: number[] = [];
+  let total = 0;
+  for (let j = 0; j < nc; j++) {
+    let m = textW(font, s.cols[j]);
+    for (let i = 0; i < nr; i++) m = Math.max(m, textW(font, s.rows[i][j]));
+    w.push(Math.max(boxes ? 34 : 30, Math.min(110, m + 18)));
+    total += w[j];
+  }
+  const kx = total > 272 ? 272 / total : 1;
+  total *= kx;
+  const L = 150 - total / 2;
+  const x0: number[] = [];
+  let acc = L;
+  for (let j = 0; j < nc; j++) {
+    x0.push(acc);
+    w[j] *= kx;
+    acc += w[j];
+  }
+  const head = s.title ? 26 : 12;
+  const pitch = Math.min(boxes ? 32 : 22, (168 - head) / (nr + 1));
+  const top = Math.max(head, 92 + (s.title ? 7 : 0) - ((nr + 1) * pitch) / 2);
+  const litR = stepping ? Math.min(nr - 1, Math.floor(f.v * nr)) : s.litRow;
+  const kL = stepping ? 1 : beat(f, 2.7, 3);
+  const k0 = beat(f, 0, 3);
+  label(c, p, font, s.title, 150, top - 11, "center", LAB, k0 * 0.9);
+  for (let j = 0; j < nc; j++) fitLabel(c, p, font, s.cols[j], x0[j] + w[j] / 2, top + pitch / 2 + (boxes ? 5 : 0), "center", LAB, beat(f, 0.3, 3), w[j] - 6);
+  if (!boxes) line(c, p, L, top + pitch, L + total, top + pitch, 0.34, SIL, k0);
+  for (let i = 0; i < nr; i++) {
+    const y = top + pitch * (i + 1);
+    const k = stepping ? (i <= litR ? 1 : 0.25) : beat(f, 0.7 + (i / nr) * 1.5, 3);
+    const rowLit = i === litR && kL > 0.5;
+    if (rowLit && s.litCol < 0 && !boxes) box(c, p, L - 3, y + 1.5, total + 6, pitch - 3, 1, true, 6);
+    for (let j = 0; j < nc; j++) {
+      const lit = rowLit && (s.litCol < 0 || s.litCol === j);
+      if (boxes) box(c, p, x0[j] + 2, y + 2, w[j] - 4, pitch - 4, k, lit, 5);
+      else if (lit && s.litCol >= 0) box(c, p, x0[j] + 2, y + 1.5, w[j] - 4, pitch - 3, 1, true, 6);
+      fitLabel(c, p, font, s.rows[i][j], x0[j] + w[j] / 2, y + pitch / 2, "center", lit ? SIL : j === 0 && !boxes ? LAB : SIL, k * (lit ? 1 : j === 0 && !boxes ? 1 : 0.7), w[j] - 8);
+    }
+  }
+}
+
+// ---- colours: when colour itself is the subject ----
+// The only device that is not silver: flat swatches in their real colours,
+// each with its name. A row of samples, one band split into parts, or a wheel.
+function drawColours(c: SkCanvas, p: SkPaint, font: SkFont | null, s: ColoursScene, changes: Change[], f: Frame) {
+  "worklet";
+  const stepping = hasKind(changes, "step");
+  const n = s.swatches.length;
+  const litI = stepping ? Math.min(n - 1, Math.floor(f.v * n)) : s.lit;
+  const kL = stepping ? 1 : beat(f, 2.7, 3);
+  label(c, p, font, s.note, 150, s.layout === "wheel" ? 12 : 26, "center", LAB, beat(f, 0.2, 3) * 0.9);
+  if (s.layout === "wheel") {
+    const CX = 150;
+    const CY = 94;
+    const RO = 50;
+    const RI = 21;
+    for (let i = 0; i < n; i++) {
+      const k = beat(f, 0.3 + (i / n) * 1.6, 3);
+      const lit = i === litI && kL > 0.5;
+      const a0 = -Math.PI / 2 + (i / n) * TAU + 0.02;
+      const a1 = -Math.PI / 2 + ((i + 1) / n) * TAU - 0.02;
+      const mid = (a0 + a1) / 2;
+      const off = lit ? 5 : 0;
+      const ox = CX + Math.cos(mid) * off;
+      const oy = CY + Math.sin(mid) * off;
+      const steps = Math.max(4, Math.round(40 / n));
+      const outer = arcPts(ox, oy, RO, a0, a1, steps);
+      const inner = arcPts(ox, oy, RI, a1, a0, steps);
+      const pts = outer.concat(inner);
+      fillPts(c, p, pts, k * (lit || kL < 0.5 ? 0.95 : 0.8), s.swatches[i].hex);
+      if (lit) strokePts(c, p, pts.concat([pts[0], pts[1]]), 1, SIL, W0);
+      if (n <= 8 || lit) {
+        const lx = CX + Math.cos(mid) * (RO + 11 + off);
+        const lyy = CY + Math.sin(mid) * (RO + 9 + off);
+        const al = Math.cos(mid) > 0.3 ? "left" : Math.cos(mid) < -0.3 ? "right" : "center";
+        fitLabel(c, p, font, s.swatches[i].name, lx, lyy, al, lit ? SIL : LAB, k, 86);
+      }
+    }
+    return;
+  }
+  if (s.layout === "band") {
+    const L = 28;
+    const R = 272;
+    const T = 58;
+    const H = 40;
+    const w = (R - L) / n;
+    for (let i = 0; i < n; i++) {
+      const k = beat(f, 0.3 + (i / n) * 1.6, 3);
+      fillPts(c, p, [L + i * w, T, L + (i + 1) * w + 0.5, T, L + (i + 1) * w + 0.5, T + H, L + i * w, T + H], k * 0.95, s.swatches[i].hex);
+    }
+    for (let i = 0; i < n; i++) {
+      const k = beat(f, 0.3 + (i / n) * 1.6, 3);
+      const lit = i === litI && kL > 0.5;
+      if (lit) {
+        stroke(p, SIL, 1, W0 + 0.4);
+        c.drawRRect(Skia.RRectXY(Skia.XYWHRect(L + i * w - 2, T - 4, w + 4, H + 8), 4, 4), p);
+      }
+      const up = n > 5 && i % 2 === 1;
+      label2(c, p, font, s.swatches[i].name, L + i * w + w / 2, T + H + (up ? 30 : 17), "center", lit ? SIL : LAB, k, n > 5 ? w * 2 - 6 : w - 6);
+    }
+    return;
+  }
+  const pitch = Math.min(64, 264 / n);
+  const r = Math.min(19, pitch / 2 - 5);
+  for (let i = 0; i < n; i++) {
+    const k = beat(f, 0.3 + (i / n) * 1.6, 3);
+    const lit = i === litI && kL > 0.5;
+    const x = 150 + (i - (n - 1) / 2) * pitch;
+    fill(p, s.swatches[i].hex, k * 0.95);
+    c.drawCircle(x, 82, r * (0.6 + 0.4 * k), p);
+    if (lit) {
+      stroke(p, SIL, 1, W0);
+      c.drawCircle(x, 82, r + 4.5, p);
+    }
+    const up = n > 5 && i % 2 === 1;
+    label2(c, p, font, s.swatches[i].name, x, 82 + r + (up ? 30 : 17), "center", lit ? SIL : LAB, k, n > 5 ? pitch * 2 - 6 : pitch - 4);
+  }
+}
+
+// ---- stave: which notes, in what order? ----
+/** How many steps of the scale a pitch ("C4", "F#4", "Bb3") sits above middle C. */
+function pitchStep(pitch: string) {
+  "worklet";
+  const letter = "CDEFGAB".indexOf(pitch.charAt(0));
+  const oct = Number(pitch.charAt(pitch.length - 1));
+  return letter + (oct - 4) * 7;
+}
+
+function drawStave(c: SkCanvas, p: SkPaint, font: SkFont | null, s: StaveScene, changes: Change[], f: Frame) {
+  "worklet";
+  const stepping = hasKind(changes, "step");
+  const n = s.notes.length;
+  const G = 9;
+  const MID = 82;
+  const L = 26;
+  const R = 278;
+  const k0 = beat(f, 0, 3);
+  for (let i = -2; i <= 2; i++) line(c, p, L, MID + i * G, R, MID + i * G, 0.36, SIL, k0, undefined, 1.1);
+  line(c, p, R, MID - 2 * G, R, MID + 2 * G, 0.5 * k0, SIL, 1, undefined, W0 + 0.6);
+  line(c, p, R - 4, MID - 2 * G, R - 4, MID + 2 * G, 0.4 * k0, SIL, 1, undefined, 1.1);
+  const treble = s.clef !== "bass";
+  drawMarks(c, p, THINGS[treble ? "treble_clef" : "bass_clef"], L + 15, MID, G * 3.5, 0.9, SIL, beat(f, 0.3, 3), W0, 1, 99);
+  let x0 = L + 34;
+  if (s.time && font) {
+    const parts = s.time.split("/");
+    for (let i = 0; i < 2; i++) {
+      c.save();
+      c.translate(x0 + 4, MID + (i === 0 ? -G : G) + 0.6);
+      c.scale(1.7, 1.7);
+      rawLabel(c, p, font, parts[i] ?? "", 0, 0, "center", SIL, beat(f, 0.5, 3) * 0.9);
+      c.restore();
+    }
+    x0 += 20;
+  }
+  // The step of the bottom line above middle C: E4 for the treble clef, G2 for the bass.
+  const base = treble ? 2 : -10;
+  const pitch = Math.min(40, (R - 14 - x0) / n);
+  const litI = stepping ? Math.min(n - 1, Math.floor(f.v * n)) : s.lit;
+  const kL = stepping ? 1 : beat(f, 2.7, 3);
+  const tq = s.time ? s.time.split("/") : [];
+  const bar = tq.length === 2 ? (Number(tq[0]) * 4) / Number(tq[1]) : 0;
+  let beats = 0;
+  for (let i = 0; i < n; i++) {
+    const nt = s.notes[i];
+    const x = x0 + pitch * (i + 0.5);
+    const k = stepping ? (i <= litI ? 1 : 0.3) : beat(f, 0.8 + (i / n) * 1.6, 3);
+    const lit = i === litI && kL > 0.5;
+    const col = lit ? BLUE : SIL;
+    const al = lit ? 1 : 0.9 * k;
+    if (nt.length === "rest") {
+      strokePts(c, p, [x - 2.5, MID - 10, x + 2.5, MID - 4, x - 2.5, MID + 1, x + 2.5, MID + 6, x - 1, MID + 4.5, x - 2, MID + 10], al, col);
+    } else {
+      const names = nt.pitch.split("+");
+      let lo = 99;
+      let hi = -99;
+      for (let j = 0; j < names.length; j++) {
+        const st = pitchStep(names[j]) - base;
+        lo = Math.min(lo, st);
+        hi = Math.max(hi, st);
+      }
+      const up = (lo + hi) / 2 < 4;
+      if (lit) thingHalo(c, x, MID + 2 * G - ((lo + hi) / 2) * (G / 2), 13, kL);
+      for (let l = -2; l >= lo; l -= 2) line(c, p, x - 9, MID + 2 * G - l * (G / 2), x + 9, MID + 2 * G - l * (G / 2), 0.5 * k, SIL, 1, undefined, 1.1);
+      for (let l = 10; l <= hi; l += 2) line(c, p, x - 9, MID + 2 * G - l * (G / 2), x + 9, MID + 2 * G - l * (G / 2), 0.5 * k, SIL, 1, undefined, 1.1);
+      const hollow = nt.length === "whole" || nt.length === "half";
+      for (let j = 0; j < names.length; j++) {
+        const st = pitchStep(names[j]) - base;
+        const y = MID + 2 * G - st * (G / 2);
+        const pts: number[] = [];
+        const rx = nt.length === "whole" ? 6 : 5.3;
+        for (let q = 0; q < 16; q++) {
+          const th = (q / 16) * TAU;
+          const ex = rx * Math.cos(th);
+          const ey = 3.6 * Math.sin(th);
+          pts.push(x + ex * 0.94 + ey * 0.34, y - ex * 0.34 + ey * 0.94);
+        }
+        if (hollow) strokePts(c, p, pts.concat([pts[0], pts[1]]), al, col, W0 + 0.2);
+        else fillPts(c, p, pts, al, col);
+        const acc = names[j].length > 2 ? names[j].charAt(1) : "";
+        if (acc === "#") {
+          line(c, p, x - 14, y - 6, x - 14, y + 6, al, col, 1, undefined, 1.1);
+          line(c, p, x - 10.5, y - 6.5, x - 10.5, y + 5.5, al, col, 1, undefined, 1.1);
+          line(c, p, x - 16, y - 1.2, x - 8.5, y - 3, al, col, 1, undefined, W0);
+          line(c, p, x - 16, y + 3, x - 8.5, y + 1.2, al, col, 1, undefined, W0);
+        } else if (acc === "b") {
+          strokePts(c, p, [x - 14, y - 10, x - 14, y + 3.5, x - 10, y + 0.5, x - 10, y - 2, x - 12, y - 3, x - 14, y - 1.5], al, col, 1.2);
+        }
+      }
+      if (nt.length !== "whole") {
+        const sx = up ? x + 5 : x - 5;
+        const y1 = MID + 2 * G - (up ? lo : hi) * (G / 2);
+        const y2 = MID + 2 * G - (up ? hi : lo) * (G / 2) + (up ? -28 : 28);
+        line(c, p, sx, y1 + (up ? -1.4 : 1.4), sx, y2, al, col);
+        if (nt.length === "eighth") strokePts(c, p, up ? [sx, y2, sx + 6, y2 + 7, sx + 5, y2 + 15] : [sx, y2, sx + 6, y2 - 7, sx + 5, y2 - 15], al, col);
+      }
+    }
+    label2(c, p, font, nt.label, x, 150, "center", lit ? SIL : LAB, k, pitch - 3);
+    beats += nt.length === "whole" ? 4 : nt.length === "half" ? 2 : nt.length === "eighth" ? 0.5 : 1;
+    if (bar > 0 && i < n - 1 && Math.abs(beats / bar - Math.round(beats / bar)) < 0.01) line(c, p, x + pitch / 2, MID - 2 * G, x + pitch / 2, MID + 2 * G, 0.4 * k, SIL, 1, undefined, 1.1);
+  }
+}
+
 // ---- hand-drawn lines (Dan Koe feel) ----
 // A wrapper round the canvas and paint that gives straight lines and outlined
 // circles a slight, steady wobble, like a marker. Fills, text and curves stay
@@ -3970,6 +4487,21 @@ export function drawScene(canvas: SkCanvas, scene: Scene, changes: Change[], f: 
       break;
     case "quote":
       drawQuote(c, p, font, scene, changes, f);
+      break;
+    case "body":
+      drawBody(c, p, font, scene, changes, f);
+      break;
+    case "circuit":
+      drawCircuit(c, p, font, scene, changes, f);
+      break;
+    case "table":
+      drawTable(c, p, font, scene, changes, f);
+      break;
+    case "colours":
+      drawColours(c, p, font, scene, changes, f);
+      break;
+    case "stave":
+      drawStave(c, p, font, scene, changes, f);
       break;
   }
 }
