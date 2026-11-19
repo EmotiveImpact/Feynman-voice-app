@@ -108,3 +108,58 @@ describe("things with named parts", () => {
     expect(s.parts).toEqual([]);
   });
 });
+
+describe("the v10 devices", () => {
+  it("needs two real forces", () => {
+    expect(checkScene({ family: "forces", object: "Book", forces: [{ label: "Weight", dir: "down", size: 9 }, { label: "Push", dir: "sideways", size: 2 }], result: "Still" })).toBeNull();
+    const f = checkScene({ family: "forces", object: "Book", forces: [{ label: "Weight", dir: "down", size: 9 }, { label: "Table", dir: "up", size: 3 }], result: "Still" });
+    expect(f?.family === "forces" && f.forces.map((x) => x.size)).toEqual([5, 3]);
+  });
+  it("fills in the signs of an equation and keeps long words whole", () => {
+    const e = checkScene({ family: "equation", terms: [{ label: "Force", note: "" }, { label: "Mass", note: "" }, { label: "Acceleration", note: "" }], signs: ["equals"], lit: 7 });
+    expect(e?.family === "equation" && e.signs).toEqual(["equals", "equals"]);
+    expect(e?.family === "equation" && e.terms[2].label).toBe("Acceleration");
+    expect(e?.family === "equation" && e.lit).toBe(2);
+  });
+  it("refuses a table with holes and keeps what each cell says", () => {
+    const base = { family: "matrix", rowTitle: "You", colTitle: "Them", rows: ["Stay quiet", "Confess"], cols: ["Stay quiet", "Confess"] };
+    expect(checkScene({ ...base, cells: ["1 year each", "10 and free", "Free and 10"], litRow: 1, litCol: 1 })).toBeNull();
+    const m = checkScene({ ...base, cells: ["1 year each", "10 and free", "Free and 10", "5 years each"], litRow: 5, litCol: 1 });
+    expect(m?.family === "matrix" && m.cells).toEqual(["1 year each", "10 and free", "Free and 10", "5 years each"]);
+    expect(m?.family === "matrix" && m.litRow).toBe(1);
+  });
+  it("drops a mapping that points nowhere", () => {
+    const b = checkScene({ family: "bridge", leftTitle: "Codon", rightTitle: "Amino acid", left: ["AUG", "UUU"], right: ["Met", "Phe"], maps: [{ from: 0, to: 0 }, { from: 1, to: 9 }], lit: 0 });
+    expect(b?.family === "bridge" && b.maps).toEqual([{ from: 0, to: 0 }]);
+  });
+  it("finds the gap in a pattern", () => {
+    const p = checkScene({ family: "pattern", items: ["2", "4", "", "16"], gap: 0, answer: "8", rule: "Doubles" });
+    expect(p?.family === "pattern" && p.gap).toBe(2);
+  });
+  it("keeps a lever's pivot where it can be drawn, and bonds no stronger than triple", () => {
+    const l = checkScene({ family: "lever", load: "Rock", effort: "Push", pivot: "Pivot", at: 0.95 });
+    expect(l?.family === "lever" && l.at).toBe(0.6);
+    const w = checkScene({ family: "bonds", shape: "bent", atoms: ["H", "O", "H"], orders: [1, 5], lit: 0, name: "Water" });
+    expect(w?.family === "bonds" && w.orders).toEqual([1, 3]);
+  });
+  it("needs more than one line of working and at least one reason", () => {
+    expect(checkScene({ family: "working", lines: [{ text: "2x + 3 = 11", note: "" }], lit: 0 })).toBeNull();
+    expect(checkScene({ family: "case", claim: "Tax sugar", reasons: [], objection: "Hits the poor", lit: 0 })).toBeNull();
+  });
+  it("names a feedback loop only on a loop", () => {
+    const links = [{ from: 0, to: 1, kind: "cause" }, { from: 1, to: 2, kind: "cause" }, { from: 2, to: 0, kind: "cause" }];
+    const nodes = ["Fear", "Withdrawals", "Less cash"];
+    const loop = checkScene({ family: "links", layout: "loop", nodes, links, feedback: "reinforcing" });
+    expect(loop?.family === "links" && loop.feedback).toBe("reinforcing");
+    const row = checkScene({ family: "links", layout: "line", nodes, links: links.slice(0, 2), feedback: "reinforcing" });
+    expect(row?.family === "links" && row.feedback).toBe("");
+  });
+  it("keeps the second group of units inside the hundred", () => {
+    const u = checkScene({ family: "units", lit: 1, label: "Ill", rest: "Well", thing: "person", also: 150, alsoLabel: "False alarm" });
+    expect(u?.family === "units" && u.also).toBe(98);
+  });
+  it("gives a shape no slider", () => {
+    const g = checkScene({ family: "geometry", shape: "circle", labels: ["Radius", "Diameter"], lit: 0 });
+    expect(checkPlay(play("step"), g)).toBeNull();
+  });
+});

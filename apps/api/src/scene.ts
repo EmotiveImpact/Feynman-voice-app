@@ -1228,7 +1228,7 @@ export function checkScene(s: unknown): Scene | null {
     if (r.family === "equation") {
       const terms = (Array.isArray(r.terms) ? r.terms : [])
         .slice(0, 5)
-        .map((x: Record<string, unknown>) => ({ label: short(x?.label, 2, 10), note: short(x?.note, 2, 14) }))
+        .map((x: Record<string, unknown>) => ({ label: short(x?.label, 2, 14), note: short(x?.note, 2, 14) }))
         .filter((x) => x.label);
       if (terms.length < 2) return null;
       const raw = Array.isArray(r.signs) ? r.signs : [];
@@ -1262,7 +1262,7 @@ export function checkScene(s: unknown): Scene | null {
       const rows = (Array.isArray(r.rows) ? r.rows : []).map((v) => short(v, 2, 14)).filter(Boolean).slice(0, 3);
       const cols = (Array.isArray(r.cols) ? r.cols : []).map((v) => short(v, 2, 12)).filter(Boolean).slice(0, 3);
       if (rows.length < 2 || cols.length < 2) return null;
-      const cells = (Array.isArray(r.cells) ? r.cells : []).slice(0, rows.length * cols.length).map((v) => short(v, 2, 12));
+      const cells = (Array.isArray(r.cells) ? r.cells : []).slice(0, rows.length * cols.length).map((v) => short(v, 3, 16));
       // A table with holes says less than no table.
       if (cells.length < rows.length * cols.length || cells.some((v) => !v)) return null;
       return { family: "matrix", rowTitle: short(r.rowTitle, 2, 16), colTitle: short(r.colTitle, 2, 16), rows, cols, cells, litRow: clampInt(r.litRow, 0, rows.length - 1, 0), litCol: clampInt(r.litCol, 0, cols.length - 1, 0) };
