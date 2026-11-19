@@ -1,6 +1,6 @@
 // Drawn scenes for Teach me. The lesson writer never draws pixels: for each
-// bite it fills in one scene from a fixed kit (forty-four families covering
-// forty-eight devices: scale, comparison, path, fork, loop, network,
+// bite it fills in one scene from a fixed kit (fifty-one families; v12 added
+// body, circuit, table, colours and stave, and real coastlines for map. The first forty-four: scale, comparison, path, fork, loop, network,
 // container, plot, stairs, spectrum, Venn, balance, pair, tree, test,
 // threshold, units, crowd, grid, timeline, layers, wave, mirror, stack,
 // radial, cutaway, funnel, sankey, fan, spiral, zoom, brace, map, things,
@@ -21,7 +21,7 @@ export const FAMILIES = [
   "particles", "links", "graph", "balance", "compare", "stairs", "spectrum", "venn", "pair", "tree", "test", "threshold", "units", "crowd",
   "grid", "timeline", "layers", "wave", "mirror", "stack", "radial", "cutaway", "funnel", "sankey", "fan", "spiral", "zoom", "brace", "map", "things",
   "spectra", "pattern", "machine", "case", "forces", "equation", "bridge", "spread", "scatter", "matrix", "geometry", "bonds", "lever", "working",
-  "stage", "quote",
+  "stage", "quote", "body", "circuit", "table", "colours", "stave",
 ] as const;
 export const STAGE_KINDS = ["says", "thinks", "gives", "goes", "against", "with"] as const;
 export const STAGE_SIZES = ["small", "normal", "big"] as const;
@@ -58,6 +58,39 @@ export const GEOMETRY_SHAPES = ["right_triangle", "triangle", "circle", "rectang
 export const BOND_SHAPES = ["line", "bent", "star", "chain", "ring"] as const;
 /** Where a named part sits on a drawn thing, for the parts layout. */
 export const PART_SPOTS = ["top", "bottom", "left", "right", "top left", "top right", "bottom left", "bottom right", "centre"] as const;
+// The body device's parts and the view each needs (apps/mobile/src/teach/scene/bodyparts.ts), copied over by mirror.py.
+// BODY:start
+export const BODY_PART_VIEWS: Record<string, "torso" | "whole" | "brain"> = {"brain": "torso", "skull": "torso", "thyroid": "torso", "trachea": "torso", "oesophagus": "torso", "lungs": "torso", "heart": "torso", "diaphragm": "torso", "liver": "torso", "gallbladder": "torso", "stomach": "torso", "spleen": "torso", "pancreas": "torso", "kidneys": "torso", "adrenal_glands": "torso", "large_intestine": "torso", "small_intestine": "torso", "appendix": "torso", "bladder": "torso", "uterus": "torso", "ovaries": "torso", "spine": "torso", "ribs": "torso", "pelvis": "torso", "shoulder": "whole", "elbow": "whole", "wrist": "whole", "hip": "whole", "knee": "whole", "ankle": "whole", "deltoid": "whole", "pectoral": "whole", "biceps": "whole", "abdominals": "whole", "quadriceps": "whole", "calf": "whole", "humerus": "whole", "femur": "whole", "tibia": "whole", "frontal_lobe": "brain", "parietal_lobe": "brain", "occipital_lobe": "brain", "temporal_lobe": "brain", "prefrontal_cortex": "brain", "motor_cortex": "brain", "sensory_cortex": "brain", "brocas_area": "brain", "wernickes_area": "brain", "cerebellum": "brain", "brainstem": "brain", "corpus_callosum": "brain", "thalamus": "brain", "hypothalamus": "brain", "pituitary": "brain", "amygdala": "brain", "hippocampus": "brain"};
+// BODY:end
+/** Other names the writer may reach for, and the part each means. */
+const BODY_ALIASES: Record<string, string> = {
+  lung: "lungs", kidney: "kidneys", windpipe: "trachea", gullet: "oesophagus", esophagus: "oesophagus", womb: "uterus", ovary: "ovaries", colon: "large_intestine", bowel: "large_intestine",
+  intestines: "small_intestine", intestine: "small_intestine", gut: "small_intestine", ribcage: "ribs", rib_cage: "ribs", backbone: "spine", vertebrae: "spine", adrenals: "adrenal_glands", adrenal: "adrenal_glands",
+  abs: "abdominals", quads: "quadriceps", bicep: "biceps", pecs: "pectoral", pectorals: "pectoral", deltoids: "deltoid", calves: "calf", thigh_bone: "femur", shin_bone: "tibia",
+  frontal: "frontal_lobe", parietal: "parietal_lobe", temporal: "temporal_lobe", occipital: "occipital_lobe", prefrontal: "prefrontal_cortex", broca: "brocas_area", brocas: "brocas_area", wernicke: "wernickes_area", wernickes: "wernickes_area",
+  brain_stem: "brainstem", pituitary_gland: "pituitary", somatosensory_cortex: "sensory_cortex", visual_cortex: "occipital_lobe",
+};
+export const CIRCUIT_KINDS = ["cell", "battery", "ac_supply", "bulb", "resistor", "variable_resistor", "switch_open", "switch_closed", "ammeter", "voltmeter", "motor", "diode", "led", "fuse", "buzzer", "thermistor", "ldr", "capacitor"] as const;
+export const COLOUR_LAYOUTS = ["row", "band", "wheel"] as const;
+export const CLEFS = ["treble", "bass"] as const;
+export const NOTE_LENGTHS = ["whole", "half", "quarter", "eighth", "rest"] as const;
+export const TIME_SIGNATURES = ["", "4/4", "3/4", "2/4", "6/8"] as const;
+/** Regions the map device can draw a real coastline for (apps/mobile/src/teach/scene/outlines.ts), with the box each covers: west, east, south, north in degrees. */
+export const MAP_REGIONS: Record<string, readonly [number, number, number, number]> = {
+  world: [-168, 180, -56, 78],
+  europe: [-24, 45, 34, 71.5],
+  uk: [-10.8, 2, 49.8, 59],
+  africa: [-19, 52, -35.5, 38],
+  asia: [25, 148, -11, 78],
+  north_america: [-168, -52, 7, 74],
+  south_america: [-82, -34, -56, 13],
+  middle_east: [25, 64, 12, 43],
+  oceania: [110, 180, -48, 0],
+  usa: [-125, -66, 24, 50],
+  south_asia: [60, 98, 5, 38],
+  east_asia: [95, 148, 18, 55],
+};
+export const MAP_REGION_NAMES = ["", ...Object.keys(MAP_REGIONS)] as const;
 /** Every drawn thing the app knows (apps/mobile/src/teach/scene/things.ts), by group. A test keeps the two lists the same. */
 export const THING_GROUPS = {
   "People and the body": ["person", "people", "face", "hand", "eye", "brain", "heart", "lungs", "cell", "dna", "virus", "bacterium", "tooth", "bone", "kidney", "stomach", "neuron", "ear", "chromosome", "mitochondrion", "skeleton", "family"],
@@ -72,17 +105,19 @@ export const THING_GROUPS = {
   "Health and medicine": ["syringe", "stethoscope", "plaster", "medical", "bed", "clipboard", "drip", "wheelchair", "blood", "facemask", "pulse", "ambulance", "baby", "elder", "liver", "spine", "muscle", "xray", "crutch", "scalpel"],
   "Energy and environment": ["turbine", "solar", "pylon", "plug", "barrel", "recycle", "tap", "smoke"],
   "Maths and data": ["dice", "card", "ruler", "protractor", "triangle", "cube", "barchart", "linechart", "pie", "abacus", "infinity", "compasses"],
-  "Arts, music and sport": ["note", "piano", "guitar", "headphones", "microphone", "palette", "brush", "frame", "ball", "runner", "dumbbell", "medal", "theatre", "drum", "violin", "trumpet", "stave", "easel", "vase", "stage", "goal", "racket", "whistle", "stopwatch", "chess"],
+  "Arts, music and sport": ["note", "piano", "guitar", "headphones", "microphone", "palette", "brush", "frame", "ball", "runner", "dumbbell", "medal", "theatre", "drum", "violin", "trumpet", "stave", "easel", "vase", "stage", "goal", "racket", "whistle", "stopwatch", "chess", "treble_clef", "bass_clef", "shot_wide", "shot_mid", "shot_close", "rule_of_thirds", "perspective_one", "perspective_two", "floor_plan", "storyboard"],
   "History and places": ["castle", "sword", "scroll", "pyramid", "helmet", "candle", "globe", "map", "compass", "quill", "wheel", "tent"],
   "Food and farming": ["bread", "carrot", "wheat", "cow", "cup", "egg", "tractor", "milk", "cheese", "banana", "bowl", "pot", "meat", "cake", "salt"],
   "Business and work": ["briefcase", "cart", "pricetag", "creditcard", "bank", "piggybank", "safe", "calculator", "receipt", "parcel", "crane", "conveyor"],
   "Language and media": ["alphabet", "quote", "dictionary", "newspaper", "megaphone", "tv", "radio", "pencil", "blackboard", "film", "podium", "translate"],
   "Places and buildings": ["river", "island", "cactus", "city", "arch", "column", "dome", "lighthouse", "road", "dam", "windmill", "coast", "church", "mosque", "temple", "pagoda", "palace", "parliament", "courthouse", "skyscraper", "flats", "cottage", "hut", "igloo", "barn", "market_stall", "station", "port", "mine", "well", "gate", "ruins", "statue", "monument", "colosseum", "tomb", "village", "street", "stadium", "library", "museum", "office", "warehouse", "power_station", "greenhouse", "tunnel", "forest", "desert", "waterfall", "cave", "cliff", "lake", "valley", "glacier", "beach", "farm_field", "tornado", "rainbow", "earthquake"],
-  "People in action": ["person_waving", "person_pointing", "person_presenting", "person_thinking", "person_idea", "person_shrugging", "person_cheering", "person_sad", "person_angry", "person_worried", "person_surprised", "person_proud", "person_refusing", "person_running", "person_walking", "person_sitting", "person_kneeling", "person_climbing", "person_pushing", "person_pulling", "person_carrying", "person_lifting", "person_falling", "person_sleeping", "person_reading", "person_writing", "person_shouting", "person_listening", "person_bowing", "person_praying", "person_dancing", "person_kicking", "person_throwing", "person_jumping", "person_digging", "person_saluting", "person_asking", "person_giving", "person_voting", "person_protesting", "person_at_computer", "person_shopping", "person_hiding", "person_winning", "person_losing"],
+  "People in action": ["person_waving", "person_pointing", "person_presenting", "person_thinking", "person_idea", "person_shrugging", "person_cheering", "person_sad", "person_angry", "person_worried", "person_surprised", "person_proud", "person_refusing", "person_running", "person_walking", "person_sitting", "person_kneeling", "person_climbing", "person_pushing", "person_pulling", "person_carrying", "person_lifting", "person_falling", "person_sleeping", "person_reading", "person_writing", "person_shouting", "person_listening", "person_bowing", "person_praying", "person_dancing", "person_kicking", "person_throwing", "person_jumping", "person_digging", "person_saluting", "person_asking", "person_giving", "person_voting", "person_protesting", "person_at_computer", "person_shopping", "person_hiding", "person_winning", "person_losing", "person_in_wheelchair", "person_pregnant", "person_with_stick", "person_with_cane", "person_on_crutches", "person_holding_baby", "person_signing"],
   "People together": ["people_talking", "people_arguing", "people_agreeing", "people_teaching", "people_helping", "people_hugging", "people_trading", "people_fighting", "parent_and_child", "people_chasing", "people_interview", "master_and_servant", "leader_and_followers", "queue", "team", "meeting", "audience", "march", "crowd_and_one", "generations"],
   "Roles and jobs": ["monarch", "soldier", "knight", "judge", "doctor", "nurse", "teacher", "student", "farmer", "builder", "scientist", "artist", "merchant", "monk", "police", "chef", "athlete", "explorer", "detective", "musician", "writer", "politician", "worker", "pilgrim", "sailor", "child"],
   "Home and everyday": ["chair", "table", "window", "lamp", "sofa", "bottle", "plate", "cutlery", "pan", "bag", "shoe", "hat", "shirt", "dress", "glasses", "watch", "scissors", "broom", "box", "basket", "fridge", "oven", "washing_machine", "bath", "bin", "bench", "streetlamp", "traffic_light", "teddy", "wallet", "ring", "soap"],
   "Signs and beliefs": ["tick", "cross_mark", "warning", "no_entry", "plus", "minus", "percent", "arrow_up", "arrow_down", "cycle", "exclamation", "sleep", "christian_cross", "crescent", "star_of_david", "yin_yang", "dharma_wheel", "oil_lamp", "peace", "skull", "ghost", "mask", "angel"],
+  "Cut-throughs and close-ups": ["heart_section", "eye_section", "skin_section", "joint_section", "tooth_section", "plant_cell", "alveolus", "synapse", "nephron", "artery", "volcano_section", "plate_boundary", "river_profile", "coast_section", "piston", "electric_motor", "transformer", "distillation", "titration", "filter_funnel"],
+  "Mouth and speech": ["mouth_open", "mouth_wide", "mouth_round", "mouth_closed", "mouth_teeth_on_lip", "mouth_tongue_between_teeth", "mouth_tongue_up", "mouth_side"],
 } as const;
 export const THING_NAMES: readonly string[] = Object.values(THING_GROUPS).flat();
 /** A drawn thing by name, or one built from the kit of parts (see asThing). */
@@ -96,9 +131,9 @@ export type Tone = (typeof TONES)[number];
 // in its hand; a building is a shell with any thing as its sign. The app holds
 // the parts (kitparts.ts); these are their names, copied over by mirror.py.
 // KIT:start
-export const KIT_POSES: readonly string[] = ["waving", "pointing", "presenting", "thinking", "idea", "shrugging", "cheering", "sad", "angry", "worried", "surprised", "proud", "refusing", "running", "walking", "sitting", "kneeling", "climbing", "pushing", "pulling", "carrying", "lifting", "falling", "reading", "writing", "shouting", "listening", "bowing", "praying", "dancing", "kicking", "throwing", "jumping", "digging", "saluting", "asking", "giving", "voting", "protesting", "at_computer", "shopping", "hiding", "winning", "losing", "stand", "holding"];
+export const KIT_POSES: readonly string[] = ["waving", "pointing", "presenting", "thinking", "idea", "shrugging", "cheering", "sad", "angry", "worried", "surprised", "proud", "refusing", "running", "walking", "sitting", "kneeling", "climbing", "pushing", "pulling", "carrying", "lifting", "falling", "reading", "writing", "shouting", "listening", "bowing", "praying", "dancing", "kicking", "throwing", "jumping", "digging", "saluting", "asking", "giving", "voting", "protesting", "at_computer", "shopping", "hiding", "winning", "losing", "stand", "holding", "in_wheelchair", "pregnant", "with_stick", "with_cane", "on_crutches", "holding_baby", "signing"];
 export const KIT_MOODS: readonly string[] = ["happy", "laugh", "sad", "angry", "worried", "surprised", "neutral", "think", "sleep"];
-export const KIT_WEARS: readonly string[] = ["crown", "cap", "hardhat", "mortarboard", "chefhat", "helmet", "widehat", "beret", "wig", "tophat", "hood", "nursecap"];
+export const KIT_WEARS: readonly string[] = ["crown", "cap", "hardhat", "mortarboard", "chefhat", "helmet", "widehat", "beret", "wig", "tophat", "hood", "nursecap", "headscarf", "turban", "kippah", "long_hair", "curly_hair", "bun", "glasses"];
 export const KIT_SHELLS: readonly string[] = ["block", "house", "hall", "tower", "shop"];
 // KIT:end
 
@@ -377,6 +412,10 @@ export interface BraceScene {
 /** Where places are, and what moves between them. A schematic map, north up. */
 export interface MapScene {
   family: "map";
+  /** A region whose real coastline is drawn behind the places, or "" for a plain schematic map. */
+  region: string;
+  /** Today's country borders, drawn faintly. Only with a region, and never for a time when they did not exist. */
+  borders: boolean;
   places: { label: string; x: number; y: number }[];
   routes: { from: number; to: number }[];
   lit: number;
@@ -528,7 +567,52 @@ export interface QuoteScene {
   note: string;
   by: string;
 }
+/** Where it is in the body: the figure or the brain, with only the named parts drawn, each where it really is. */
+export interface BodyScene {
+  family: "body";
+  /** Worked out here from the parts: head to hips, the whole figure, or the brain. */
+  view: "torso" | "whole" | "brain";
+  parts: { part: string; label: string }[];
+  lit: number;
+}
+/** A circuit diagram in standard symbols. Branch 0 is the main loop; 1 to 3 are rungs in parallel. */
+export interface CircuitScene {
+  family: "circuit";
+  parts: { kind: (typeof CIRCUIT_KINDS)[number]; label: string; branch: number }[];
+  lit: number;
+}
+/** A small table of words or values. One row on its own is drawn as memory boxes. */
+export interface TableScene {
+  family: "table";
+  title: string;
+  cols: string[];
+  rows: string[][];
+  litRow: number;
+  /** -1 lights the whole row. */
+  litCol: number;
+}
+/** Real colours, for when colour itself is the subject. */
+export interface ColoursScene {
+  family: "colours";
+  layout: (typeof COLOUR_LAYOUTS)[number];
+  swatches: { name: string; hex: string }[];
+  lit: number;
+  note: string;
+}
+/** Notes on a stave. */
+export interface StaveScene {
+  family: "stave";
+  clef: (typeof CLEFS)[number];
+  time: string;
+  notes: { pitch: string; length: (typeof NOTE_LENGTHS)[number]; label: string }[];
+  lit: number;
+}
 export type Scene =
+  | BodyScene
+  | CircuitScene
+  | TableScene
+  | ColoursScene
+  | StaveScene
   | StageScene
   | QuoteScene
   | ParticlesScene
@@ -648,7 +732,7 @@ export const SCENE_SCHEMA = {
     obj({ family: en(["spiral"]), stages: strs, turns: int, label: str }),
     obj({ family: en(["zoom"]), levels: arr(obj({ label: str, size: str })), at: int }),
     obj({ family: en(["brace"]), items: strs, groups: arr(obj({ label: str, from: int, to: int })), lit: int }),
-    obj({ family: en(["map"]), places: arr(obj({ label: str, x: num, y: num })), routes: arr(obj({ from: int, to: int })), lit: int }),
+    obj({ family: en(["map"]), region: en(MAP_REGION_NAMES), borders: bool, places: arr(obj({ label: str, x: num, y: num, lat: num, lon: num })), routes: arr(obj({ from: int, to: int })), lit: int }),
     obj({ family: en(["things"]), layout: en(THING_LAYOUTS), items: arr(obj({ thing: str, label: str, size: num, tone: en(TONES) })), parts: arr(obj({ label: str, at: en(PART_SPOTS) })), lit: int }),
     obj({ family: en(["spectra"]), item: str, rows: arr(obj({ left: str, right: str, at: num })), lit: int }),
     obj({ family: en(["pattern"]), items: strs, gap: int, answer: str, rule: str }),
@@ -666,6 +750,11 @@ export const SCENE_SCHEMA = {
     obj({ family: en(["working"]), lines: arr(obj({ text: str, note: str })), lit: int }),
     obj({ family: en(["stage"]), place: str, placeLabel: str, placeTone: en(TONES), actors: arr(obj({ thing: str, label: str, size: en(STAGE_SIZES), tone: en(TONES) })), acts: arr(obj({ from: int, to: int, kind: en(STAGE_KINDS), label: str })), lit: int }),
     obj({ family: en(["quote"]), text: str, phrase: str, note: str, by: str }),
+    obj({ family: en(["body"]), parts: arr(obj({ part: str, label: str })), lit: int }),
+    obj({ family: en(["circuit"]), parts: arr(obj({ kind: en(CIRCUIT_KINDS), label: str, branch: int })), lit: int }),
+    obj({ family: en(["table"]), title: str, cols: strs, rows: arr(strs), litRow: int, litCol: int }),
+    obj({ family: en(["colours"]), layout: en(COLOUR_LAYOUTS), swatches: arr(obj({ name: str, hex: str })), lit: int, note: str }),
+    obj({ family: en(["stave"]), clef: en(CLEFS), time: en(TIME_SIGNATURES), notes: arr(obj({ pitch: str, length: en(NOTE_LENGTHS), label: str })), lit: int }),
     { type: "null" },
   ],
 } as const;
@@ -690,7 +779,7 @@ const THING_MENU = Object.entries(THING_GROUPS)
 export const SCENE_PROMPT = `Each bite also gets a scene: one small live drawing that makes one point. You do not draw. You pick one device and fill in its slots, and the app draws it in Fenny's style (soft silver lines on near-black, one thing lit, built in a few beats). Use a scene for almost every bite. Use null only when no device fits, and then the picture field is used instead.
 
 How to choose, in this order:
-1. Find the question the idea answers (who or what, who did what to whom, how much, where, when, how, why). Who did what to whom, or what happens between people: stage. Which exact words: quote. Who or what: things (show the real object, person or place), geometry or bonds. How much: compare, spectrum, graph, units, cutaway, funnel, spread, scatter or things with layout scale. When: timeline, links line or stairs. Where: map, grid or layers. How: links, particles, wave, loop, machine, working, lever or things with layout chain or orbit. Why: graph, balance, forces or case. What kind: tree, venn, brace, pair, matrix or bridge. What comes next: pattern. What is it made of: equation or cutaway.
+1. Find the question the idea answers (who or what, who did what to whom, how much, where, when, how, why). Who did what to whom, or what happens between people: stage. Which exact words: quote. Who or what: things (show the real object, person or place), geometry or bonds. How much: compare, spectrum, graph, units, cutaway, funnel, spread, scatter or things with layout scale. When: timeline, links line or stairs. Where: map, grid or layers. Where in the body: body. How: links, particles, wave, loop, machine, working, lever or things with layout chain or orbit. Why: graph, balance, forces or case. What kind: tree, venn, brace, pair, matrix or bridge. What comes next: pattern. What is it made of: equation or cutaway. Wired how: circuit. Row by row: table. Which notes: stave. Which colour: colours.
 2. If the idea is "the difference between X and Y", use pair.
 3. If no picture comes to mind, turn the key sentence into a chart: "A and B overlap" is a venn, "more X gives more Y" is a graph.
 4. Check it before you answer. Clear at a glance? Builds left to right in the order it is spoken? Uses a real example the student knows? Simple but never wrong, so a lecturer could not mark it wrong? If any answer is no, simplify or use null.
@@ -746,6 +835,11 @@ Pick the device by the question the idea answers:
 - Which atoms are joined, and by what bonds (water, carbon dioxide, methane, benzene)? bonds.
 - How does a small push move a big load (moments, mechanical advantage, gearing)? lever.
 - What happens at each step of working something out (solving an equation, a proof, a calculation, tracing code)? working.
+- Where in the body is it, or which part of the brain does it (an organ, a joint, a muscle, a bone, a lobe)? body.
+- What is wired to what (a series or a parallel circuit, where the meter goes, what a switch controls)? circuit.
+- What goes in each row (a verb table, a truth table with three or more columns, a trace of a loop, an array in memory)? table.
+- Which colour is it, when the colour itself is the fact (a flame test, an indicator, the visible spectrum, a colour wheel in art)? colours.
+- Which notes, in what order and for how long (a scale, a chord, a melody, a rhythm)? stave.
 
 The devices:
 particles: zones (1 to 3 area labels, left to right, "" for none), divider (none, wall, membrane = dashed and crossable, sieve = gaps), things (1 to 3 groups: name, mark dot = something that moves, ring = an object, blocked = something stopped, at most one group; count 1 to 16; zone it starts in; to = zone it heads to, same as zone if it stays; motion still, drift, jiggle like heat, cross from zone to "to", rise, fall, orbit, pulse, flow).
@@ -776,13 +870,14 @@ fan: x and y axis labels, shape = the trend (rise, fall, flat), now = where the 
 spiral: stages 2 to 5 for one turn, turns 2 or 3, label = what grows each time round, or "".
 zoom: levels 2 to 5, biggest first (label and size, like "Cell" and "10 µm", size "" if unknown), at = index of the lit level.
 brace: items 3 to 7 in a row, groups 1 to 3 (label, from and to = the first and last item index in the group, groups never overlap), lit = index of the lit group.
-map: places 2 to 6 (label, x = 0 west to 1 east, y = 0 south to 1 north, rough real positions, never invented), routes 0 to 6 (from and to place indexes, in the order they happen), lit = index of the lit place. It draws dots and routes only, never coastlines.
+map: region = one of ${Object.keys(MAP_REGIONS).join(", ")} to draw that region's real coastline behind the places (choose the smallest region that holds every place), or "" for a plain sketch map with no coastline. places 1 to 6 with a region, 2 to 6 without (label; with a region give lat and lon, the place's real latitude and longitude in degrees, south and west negative, and set x and y to 0; without a region give x = 0 west to 1 east and y = 0 south to 1 north, rough real positions, and set lat and lon to 0; never invented). routes 0 to 6 (from and to place indexes, in the order they happen), lit = index of the lit place. borders: true draws today's country borders faintly, so only for a lesson about the world as it is now; false for history and for physical geography, because the app cannot draw the borders of another time and must never show ones that did not exist.
 things: drawn objects, people and places from the list below, each with a label (1 to 3 words) and a size. layout row (1 to 5 things side by side: examples of a kind, or one big picture), versus (exactly 2, set against each other), chain (2 to 4, each becoming or causing the next, joined by arrows), orbit (2 or 3: item 1 goes round item 0, and item 2 goes round item 1, like the Sun, Earth and Moon), scale (2 to 4 drawn at their real relative sizes standing on one line; size = a real number in one unit, smallest first), parts (exactly 1 thing drawn big, with parts = 2 to 4 of its named parts, each with a label of 1 to 4 words and at = where that part sits on the drawing: top, bottom, left, right, top left, top right, bottom left, bottom right or centre, each spot once; only when they really are parts of that drawn thing, where the drawing shows them, never labels hung on a symbol like a bulb or a book). size is 1 for other layouts. parts is [] for every layout but parts. lit = index of the lit thing, or for parts the index of the lit part. Only use names from this list; if nothing in it is the thing, use another device:
 ${THING_MENU}
   People: choose the pose, pair or role that shows what the person is doing, feeling or is (person_thinking, people_trading, judge). Use plain person only when nothing is happening.
   The kit of parts: when no drawn person or building says it exactly, build one. Anywhere a thing goes you may write a kit name instead.
     A person is person:POSE:MOOD:WEARS:HOLDS. POSE is one of: ${KIT_POSES.join(", ")}. MOOD is one of: ${KIT_MOODS.join(", ")}. WEARS is one hat that says who they are: ${KIT_WEARS.join(", ")}. HOLDS is any one thing from the list above, drawn small in the hand (use pose holding). Leave a part empty to skip it and drop empty parts from the end: person:refusing:angry:crown is a furious king saying no, person:holding:happy::scroll is someone with a scroll, person:kneeling:sad is a beaten person, person:walking:worried:hood is a refugee on the road.
     A building is place:SHELL:SIGN. SHELL is one of: ${KIT_SHELLS.join(", ")} (block: a plain public building, house: a home or small school, hall: a grand building with columns, tower: a tall office, shop: a shop front). SIGN is any one thing from the list, drawn on the building to say what it is: place:hall:scales is a court, place:block:pill a pharmacy, place:shop:bread a bakery, place:tower:newspaper a newspaper office, place:block:shield a police station, place:hall:coin a central bank.
+    All kinds of people: the people in examples are not all alike. When it fits naturally, a person may wear a headscarf, a turban, a kippah, glasses or different hair, use a wheelchair (pose in_wheelchair), a stick, a white cane or crutches, be pregnant, hold a baby or sign. The wheelchair user can be the doctor, the judge or the customer: do not save these for lessons about disability, faith or age, and never use one to mean weak, poor or foreign. For a lesson about a faith or a culture, only what that group itself wears, and only when you are sure.
     Keep the same person through a lesson: if the worker is person:stand:neutral:cap in one bite, in the next they are person:refusing:angry:cap or person:cheering:laugh:cap, the same hat in a new pose and feeling, so the learner follows one character through the story.
   A metaphor (iceberg, dominoes, snowball, ladder, bridge and so on) only when the notes use that image or it is the standard teaching image for the idea, never as decoration.
 units: also thing = a thing from the list to count with instead of dots (person for people, coin for money), or "". also and alsoLabel: a second group among the rest, drawn as rings (out of 100 people, 1 is ill and tests positive, lit, and 9 are well but test positive, also); 0 and "" when there is no second group.
@@ -802,6 +897,15 @@ lever: load, effort and pivot = labels (1 or 2 words), at = where the pivot sits
 working: lines 2 to 5 in order (text = the line as written, up to 26 characters, like "2x + 3 = 11"; note = what was done to get it, 2 to 5 words, "" for the first), lit = index of the line the lesson is about. Every line must follow from the one before.
 stage: people, things and a place standing on one ground line, with what happens between them. actors = 1 to 3 from the things list (thing, a label of 1 to 3 words, size small, normal or big: big for the powerful or the adult, small for the weak or the child, normal otherwise). place = one thing from the list for where it happens (a building or a landscape), or "", and placeLabel = its name or "". acts = 1 or 2 things that happen: from = an actor index, to = an actor index or -1 for the place, kind says (a speech bubble over from; label = the 1 to 3 words said), thinks (a thought bubble; label = the thought), gives or goes (an arrow from one to the other; label = what is given, or why they go), against (in conflict; label = what over) or with (allied; label = the tie). lit = index of the actor the lesson is about. Choose each person by what they do or who they are: a pose (person_running, person_refusing), a pair or group (people_arguing, march, queue) or a role (monarch, merchant, judge, soldier, farmer). Or build the exact person from the kit (person:pointing:angry:crown) and the exact building (place:hall:scales). People turn to face whoever they act on. Use stage when the idea is an event or a relationship between people, never for an abstract process.
 quote: text = the exact words, up to 20 words (a line from the text studied, a statute or a definition, or a sentence in the language being learned). phrase = the 1 to 5 words inside it that the lesson turns on, copied exactly. note = what that phrase does or means, in 2 to 7 words. by = where it is from in 1 to 4 words ("Macbeth, Act 1"), or "". Only quote words you are sure are exact: from the notes, or a text you know word for word. If unsure of the wording, use another device.
+body: the human figure, or the brain, drawn quietly with only the parts you name drawn on it, each where it really is, and its name at the side. parts 1 to 4 (part = a name from the lists below, label = its name as the lesson uses it, 1 to 3 words), lit = index of the part the lesson is about. The view is chosen for you: head to hips for organs, the whole figure when a joint, a limb muscle or a long bone is named, the brain from its left side for the brain's areas (these never mix with the other lists). The figure faces you, so its left is on your right, as in every anatomy book.
+  Organs and trunk: ${Object.keys(BODY_PART_VIEWS).filter((k) => BODY_PART_VIEWS[k] === "torso").join(", ")}.
+  Joints, muscles and long bones (seen from the front, so no muscles of the back): ${Object.keys(BODY_PART_VIEWS).filter((k) => BODY_PART_VIEWS[k] === "whole").join(", ")}.
+  The brain: ${Object.keys(BODY_PART_VIEWS).filter((k) => BODY_PART_VIEWS[k] === "brain").join(", ")}.
+  If the part is not in these lists, do not point at the nearest one: use another device or null. For the inside of one organ use a cut-through from the things list with layout parts (heart_section, eye_section, skin_section, joint_section, tooth_section, alveolus, synapse, nephron, artery).
+circuit: a circuit diagram in standard symbols. parts 2 to 8, in the order they are met going round from the supply (kind = ${CIRCUIT_KINDS.join(", ")}; label = its name or value in 1 or 2 words, or ""; branch = 0 for the main loop, or 1, 2 or 3 for parts on separate rungs in parallel with each other). There must be a cell, a battery or an ac_supply, always on branch 0. A voltmeter goes on its own branch, across the part it measures. An ammeter goes in the loop it measures. lit = index of the part the lesson is about. Current is shown moving round every closed loop, and lamps with current shine, so a switch_open really does stop it: only draw what is true of the real circuit.
+table: a small table of words or values. title = what it is, 2 to 5 words, or "". cols 2 to 5 column headings (1 to 3 short words). rows 1 to 6, each with exactly one cell for every column (1 to 3 short words; "" for a cell that is empty). litRow and litCol = the cell the lesson is about, litCol -1 to light the whole row. One row on its own is drawn as boxes in a line, an array in memory with the headings as its indexes. Every cell must be true: a real conjugation, the real output of the gate, the real value at that pass.
+colours: real colours, for when colour itself is the subject. swatches 2 to 7 (3 to 12 for a wheel), each a name (1 or 2 words) and hex = its true colour as #RRGGBB. layout row (separate samples: flame tests, pigments), band (one strip split into parts in order: the visible spectrum, an indicator's range) or wheel (a colour wheel, in order round the circle). lit = index of the swatch the lesson is about. note = one short line above it, up to 6 words, or "".
+stave: notes on a five-line stave. clef treble or bass. time "4/4", "3/4", "2/4", "6/8" or "" for none. notes 1 to 8 in order: pitch = a letter A to G, then # or b if sharp or flat, then the octave number, middle C being C4 ("C4", "F#4", "Bb3"); join 2 or 3 pitches with + for a chord ("C4+E4+G4"); length whole, half, quarter, eighth, or rest (a one beat rest, pitch ""); label = what to write under it, 1 or 2 short words (the note name, a count, a chord name), or "". lit = index of the note the lesson is about. The notes must be the real ones, and should fill whole bars when there is a time signature.
 
 tone (on each side of a pair, each item of things, each actor of a stage, and placeTone for a stage's place): colour for meaning, one soft wash behind that thing. "good" is green, "bad" is red, "" is none, and "" is right almost every time. Use a tone only when the idea itself sets something good against something bad (a healthy cell and a cancer cell, a fair deal and a scam), or when one thing in the picture is plainly a harm or a gain (the shop where prices rose, the buyer who gets the deal). Never to decorate, never for "important" (the light does that), never on both sides the same, never for a matter of opinion (a political side, a religion, a people), and at most two in a picture.
 
@@ -822,6 +926,7 @@ play: at most one bite per lesson (usually the first or second) gets a slider th
     things: step (the light moves through the things in order, or through the parts), speed (for orbit: it goes round faster).
     spectra, machine, case, equation, bridge, matrix, bonds and working: step (the light moves through the parts in order). pattern: step (the answer lands in the gap).
     stage: step (the light moves through the actors in order). quote: no slider.
+    body, table, colours and stave: step (the light moves through the parts, rows, swatches or notes in order). circuit: step (every open switch closes halfway along, so the current starts), speed (the current flows faster).
     forces: grow (the last force listed grows from nothing to its size, and the resultant changes with it). lever: slide (the pivot moves from the load end to the effort end). spread and scatter: grow (the sample grows from a few points to all of them).
 
 caption: one short sentence under 9 words that states the point, ending with a full stop, like "Water follows the sugar."
@@ -837,8 +942,16 @@ What makes a good scene:
 - links is the device most often reached for and most often the wrong one. Use it only when the idea really is a chain of causes or a network, and at most once a lesson. Before links, check: levels climbed in order (stairs), dates (timeline), stages gone round (radial with cycle), how many out of how many (units), a tipping point (threshold), a range (spectrum), a real object or person (things).
 - Never the same device twice in one lesson, pair and things included.
 - Near neighbours. equation or machine: equation when the terms themselves combine, machine when one thing does the work. case or test: a case weighs reasons for a claim, a test runs one thing through fixed conditions. bridge or mirror: mirror for one to one partners, bridge when several map to one. spread or a bell graph: spread when it is about cases or people, graph for a law. scatter or graph: scatter for data and how tightly it follows, graph for the relationship itself. matrix or grid: a matrix says what happens in each cell, a grid places one item. spectra or spectrum: one scale is a spectrum. working or links: working for written lines of maths, logic or code. forces or balance: forces act on one object in directions, a balance weighs two sides.
+- More near neighbours. table or matrix: a matrix crosses two choices and fills every combination, a table lists rows of words or values under headings. body or things with parts: body for where something is in a person, a cut-through thing with parts for the inside of one organ. colours or spectrum: colours only when the colour is the fact itself, a spectrum for any other scale. map with a region or without: a region whenever real places are named, a sketch map only for an imagined or schematic place.
 - compare is for real quantities in one unit. Without real numbers, choose by the question the idea answers instead.
 - If no device honestly fits, use null. A wrong picture is worse than none.
+
+Care and honesty. These come before everything above:
+- Real, named people. Never try to draw what a real person looked like. Use a role figure or a kit person and put the name in the label (monarch labelled "Elizabeth I", person:pointing:neutral:tophat labelled "Brunel"). The hat or the thing in the hand says the role; nothing says the face, the body or the skin. The same for a real building: a kit building or the nearest drawn place with its real name, and a map with a region for where it is.
+- Hard topics (war, slavery, genocide, abuse, self-harm, serious illness, death). Draw the structure, never the suffering: a map with the routes, a timeline, units for how many, a stage with calm standing figures and plain labels. No bodies, no wounds, no weapon in use, no chains on a person, nobody being hurt. A face may be sad or worried, never laughing, and nothing is comic. A tone may mark a harm, never a group of people. If the only honest picture would show suffering, use a quote from the source or null.
+- When colour is the subject, use colours. Everywhere else the picture stays silver with one thing lit.
+- Letters the drawing can show: Latin with accents, Greek, Cyrillic and phonetic (IPA) symbols. It cannot yet show Arabic, Hebrew, Chinese, Japanese, Korean, Hindi or other scripts: in a scene write those words in their romanised form (pinyin, romaji), and keep the real script for the say and text of the bite. For how a sound is made, use a mouth shape from the things list.
+- When not to draw. Use null when a picture would add nothing or could mislead: a definition that is only words, a judgement or a feeling with no structure, a list with no order and no relation, anything you would have to invent numbers or positions for, and anything the kit cannot draw truthfully (a border from another century, a real face, a part of the body not in the lists). A bite with no picture is fine. A wrong or empty picture is not.
 
 Examples (scene, then play):
 Osmosis: {"family":"particles","zones":["Dilute","Concentrated"],"divider":"membrane","things":[{"name":"water","mark":"dot","count":14,"zone":0,"to":1,"motion":"drift"},{"name":"sugar","mark":"ring","count":8,"zone":1,"to":1,"motion":"still"}]} play {"prompt":"Add sugar to the right.","low":"No sugar","high":"Lots of sugar","readouts":["Same on both sides, so no overall movement.","More sugar on the right, so water starts moving right.","Lots of sugar on the right. Most of the water has crossed."],"changes":[{"target":"sugar","does":"appear"},{"target":"water","does":"cross"}]}
@@ -865,7 +978,7 @@ Call stack: {"family":"stack","label":"Call stack","items":["main","sort","swap"
 Composition of air: {"family":"cutaway","whole":"Air","parts":[{"label":"Nitrogen","share":78},{"label":"Oxygen","share":21},{"label":"Other","share":1}],"lit":1}
 Power station: {"family":"sankey","source":"Fuel energy","splits":[{"label":"Electricity","share":35},{"label":"Heat lost","share":65}],"lit":0}
 Levels of organisation: {"family":"zoom","levels":[{"label":"Body","size":"1.7 m"},{"label":"Heart","size":"12 cm"},{"label":"Muscle cell","size":"100 µm"}],"at":2}
-Triangular trade: {"family":"map","places":[{"label":"Britain","x":0.55,"y":0.85},{"label":"West Africa","x":0.6,"y":0.4},{"label":"Caribbean","x":0.1,"y":0.5}],"routes":[{"from":0,"to":1},{"from":1,"to":2},{"from":2,"to":0}],"lit":1}
+The three zones of a model city (not a real place, so a sketch map): {"family":"map","region":"","borders":false,"places":[{"label":"Centre","x":0.5,"y":0.5,"lat":0,"lon":0},{"label":"Inner city","x":0.3,"y":0.7,"lat":0,"lon":0},{"label":"Suburbs","x":0.12,"y":0.85,"lat":0,"lon":0}],"routes":[{"from":0,"to":1},{"from":1,"to":2}],"lit":2}
 Earth and Moon: {"family":"things","layout":"orbit","items":[{"thing":"sun","label":"Sun","size":1,"tone":""},{"thing":"earth","label":"Earth","size":1,"tone":""},{"thing":"moon","label":"Moon","size":1,"tone":""}],"parts":[],"lit":2}
 Growth from a seed: {"family":"things","layout":"chain","items":[{"thing":"seed","label":"Seed","size":1,"tone":""},{"thing":"sprout","label":"Seedling","size":1,"tone":""},{"thing":"tree","label":"Tree","size":1,"tone":""}],"parts":[],"lit":2}
 Climbing Everest: {"family":"things","layout":"scale","items":[{"thing":"person","label":"Climber, 1.8 m","size":1.8,"tone":""},{"thing":"house","label":"House, 8 m","size":8,"tone":""},{"thing":"mountain","label":"Everest, 8,849 m","size":8849,"tone":""}],"parts":[],"lit":0}
@@ -894,6 +1007,19 @@ Macbeth's ambition: {"family":"quote","text":"I have no spur to prick the sides 
 Compound interest: {"family":"graph","x":"Years","y":"Savings","curves":[{"name":"savings","shape":"grow","label":""}],"highlight":"ride"}
 A bank run: {"family":"links","layout":"loop","nodes":["Fear","Withdrawals","Low reserves"],"links":[{"from":0,"to":1,"kind":"cause"},{"from":1,"to":2,"kind":"cause"},{"from":2,"to":0,"kind":"cause"}],"feedback":"reinforcing"}
 A positive test for a rare disease: {"family":"units","lit":1,"label":"ill, test positive","rest":"well, test negative","thing":"","also":9,"alsoLabel":"well, test positive"}
+The triangular trade (history, so no borders): {"family":"map","region":"world","borders":false,"places":[{"label":"Britain","x":0,"y":0,"lat":53,"lon":-2},{"label":"West Africa","x":0,"y":0,"lat":7,"lon":0},{"label":"Caribbean","x":0,"y":0,"lat":18,"lon":-75}],"routes":[{"from":0,"to":1},{"from":1,"to":2},{"from":2,"to":0}],"lit":1}
+Where the UK's big cities are: {"family":"map","region":"uk","borders":true,"places":[{"label":"London","x":0,"y":0,"lat":51.5,"lon":-0.1},{"label":"Manchester","x":0,"y":0,"lat":53.5,"lon":-2.2},{"label":"Edinburgh","x":0,"y":0,"lat":55.95,"lon":-3.2}],"routes":[],"lit":0}
+Gas exchange happens in the lungs: {"family":"body","parts":[{"part":"trachea","label":"Windpipe"},{"part":"lungs","label":"Lungs"},{"part":"diaphragm","label":"Diaphragm"}],"lit":1}
+The knee is a hinge joint: {"family":"body","parts":[{"part":"femur","label":"Femur"},{"part":"knee","label":"Knee"},{"part":"tibia","label":"Tibia"}],"lit":1}
+Broca's and Wernicke's areas: {"family":"body","parts":[{"part":"brocas_area","label":"Broca's area"},{"part":"wernickes_area","label":"Wernicke's area"}],"lit":0}
+Lamps in parallel: {"family":"circuit","parts":[{"kind":"cell","label":"Cell","branch":0},{"kind":"switch_open","label":"Switch","branch":0},{"kind":"bulb","label":"Lamp 1","branch":1},{"kind":"bulb","label":"Lamp 2","branch":2}],"lit":3} play {"prompt":"Close the switch.","low":"Open","high":"Closed","readouts":["The switch is open, so no current flows and both lamps are off.","Still open. A gap anywhere in the main loop stops everything.","Closed. Each lamp has its own loop to the cell, so both light fully."],"changes":[{"target":"","does":"step"}]}
+Parler in the present tense: {"family":"table","title":"Parler, present tense","cols":["Person","Verb"],"rows":[["je","parle"],["tu","parles"],["il, elle","parle"],["nous","parlons"],["vous","parlez"],["ils, elles","parlent"]],"litRow":3,"litCol":1}
+An AND gate: {"family":"table","title":"","cols":["A","B","A AND B"],"rows":[["0","0","0"],["0","1","0"],["1","0","0"],["1","1","1"]],"litRow":3,"litCol":-1}
+An array: {"family":"table","title":"scores","cols":["0","1","2","3"],"rows":[["72","85","90","64"]],"litRow":0,"litCol":2}
+Flame tests: {"family":"colours","layout":"row","swatches":[{"name":"Lithium","hex":"#D8343C"},{"name":"Sodium","hex":"#F5B81F"},{"name":"Potassium","hex":"#B58BD9"},{"name":"Copper","hex":"#2FB89A"}],"lit":3,"note":"Flame test colours"}
+The C major chord: {"family":"stave","clef":"treble","time":"","notes":[{"pitch":"C4","length":"quarter","label":"C"},{"pitch":"E4","length":"quarter","label":"E"},{"pitch":"G4","length":"quarter","label":"G"},{"pitch":"C4+E4+G4","length":"whole","label":"C major"}],"lit":3}
+The chambers of the heart: {"family":"things","layout":"parts","items":[{"thing":"heart_section","label":"Heart","size":1,"tone":""}],"parts":[{"label":"Right atrium","at":"top left"},{"label":"Left atrium","at":"top right"},{"label":"Right ventricle","at":"bottom left"},{"label":"Left ventricle","at":"bottom right"}],"lit":3}
+A ward round: {"family":"stage","place":"hospital","placeLabel":"The ward","placeTone":"","actors":[{"thing":"person:in_wheelchair:neutral:glasses:clipboard","label":"Consultant","size":"normal","tone":""},{"thing":"person:listening:worried","label":"Patient","size":"normal","tone":""}],"acts":[{"from":0,"to":1,"kind":"says","label":"Home today"}],"lit":0}
 Weather and climate: {"family":"pair","left":{"label":"Weather","shape":"jagged","count":0,"note":"Day to day","tone":""},"right":{"label":"Climate","shape":"smooth","count":0,"note":"Over 30 years","tone":""},"lit":"right"}`;
 
 // ---- checking ----
@@ -981,12 +1107,27 @@ const ALLOWED: Record<Scene["family"], readonly Play["changes"][number]["does"][
   working: ["step"],
   stage: ["step"],
   quote: [],
+  body: ["step"],
+  circuit: ["step", "speed"],
+  table: ["step"],
+  colours: ["step"],
+  stave: ["step"],
 };
 /** Families whose slider changes name a thing in the scene. All others use "". */
 const NAMED_TARGETS: readonly string[] = ["particles", "graph", "balance", "compare"];
 
+/** Letters the app's label font can draw: Latin with accents, phonetic symbols, Greek, Cyrillic, and common signs. */
+const UNDRAWABLE = /[^\u0000-\u052F\u1E00-\u1EFF\u2000-\u22FF]/;
+
 /** Trims a scene to what the app can draw well, or returns null if there is nothing usable. */
 export function checkScene(s: unknown): Scene | null {
+  const out = tidyScene(s);
+  // A label in a script the font cannot draw would show as empty boxes: no picture is better.
+  if (out && UNDRAWABLE.test(JSON.stringify(out))) return null;
+  return out;
+}
+
+function tidyScene(s: unknown): Scene | null {
   if (!s || typeof s !== "object") return null;
   const r = s as Record<string, unknown>;
   try {
@@ -1249,17 +1390,32 @@ export function checkScene(s: unknown): Scene | null {
       return { family: "brace", items, groups, lit: clampInt(r.lit, 0, groups.length - 1, 0) };
     }
     if (r.family === "map") {
+      const region = typeof r.region === "string" && MAP_REGIONS[r.region] ? r.region : "";
+      const bx = region ? MAP_REGIONS[region] : null;
       const places = (Array.isArray(r.places) ? r.places : [])
         .slice(0, 6)
-        .map((x: Record<string, unknown>) => ({ label: short(x.label, 2), x: num01(x.x, 0.5), y: num01(x.y, 0.5) }))
+        .map((x: Record<string, unknown>) => {
+          const label = short(x.label, 2);
+          if (!bx) return { label, x: num01(x.x, 0.5), y: num01(x.y, 0.5) };
+          // On a real map a place sits at its true latitude and longitude, or it is left off.
+          const lat = Number(x.lat);
+          const lon = Number(x.lon);
+          if (!Number.isFinite(lat) || !Number.isFinite(lon) || (lat === 0 && lon === 0)) return { label: "", x: 0, y: 0 };
+          const px = (lon - bx[0]) / (bx[1] - bx[0]);
+          const py = (lat - bx[2]) / (bx[3] - bx[2]);
+          if (px < 0.01 || px > 0.99 || py < 0.01 || py > 0.99) return { label: "", x: 0, y: 0 };
+          return { label, x: Math.round(px * 1000) / 1000, y: Math.round(py * 1000) / 1000 };
+        })
         .filter((x) => x.label);
-      if (places.length < 2) return null;
+      // A real map can point at a single place; a schematic one needs two to mean anything.
+      if (places.length < (region ? 1 : 2)) return null;
       const pi = (n: unknown) => clampInt(n, 0, places.length - 1, 0);
-      const routes = (Array.isArray(r.routes) ? r.routes : [])
+      const kept = (Array.isArray(r.places) ? r.places : []).slice(0, 6).length === places.length;
+      const routes = (kept && Array.isArray(r.routes) ? r.routes : [])
         .slice(0, 6)
         .map((x: Record<string, unknown>) => ({ from: pi(x.from), to: pi(x.to) }))
         .filter((x) => x.from !== x.to);
-      return { family: "map", places, routes, lit: clampInt(r.lit, 0, places.length - 1, 0) };
+      return { family: "map", region, borders: !!region && r.borders === true, places, routes, lit: clampInt(r.lit, 0, places.length - 1, 0) };
     }
     if (r.family === "things") {
       const layout = oneOf(r.layout, THING_LAYOUTS, "row");
@@ -1441,6 +1597,83 @@ export function checkScene(s: unknown): Scene | null {
       for (let i = 0; i + pw.length <= tw.length && !found; i++) found = pw.every((w, j) => tw[i + j] === w);
       if (!pw.length || pw.length > 6 || !found) return null;
       return { family: "quote", text, phrase: phrase.split(" ").filter((w) => bare(w)).join(" "), note: short(r.note, 7, 46), by: short(r.by, 5, 30) };
+    }
+    if (r.family === "body") {
+      const seen = new Set<string>();
+      let parts = (Array.isArray(r.parts) ? r.parts : [])
+        .map((x: Record<string, unknown>) => {
+          const raw = String(x?.part ?? "").trim().toLowerCase().replace(/['’]/g, "").replace(/[\s-]+/g, "_");
+          const part = BODY_PART_VIEWS[raw] ? raw : (BODY_ALIASES[raw] ?? "");
+          return { part, label: short(x?.label, 3, 22) || part.replace(/_/g, " ").replace(/^./, (ch) => ch.toUpperCase()) };
+        })
+        .filter((x) => x.part && !seen.has(x.part) && !!seen.add(x.part));
+      if (!parts.length) return null;
+      // The brain's areas have their own picture; they never share one with the rest of the body.
+      const brain = BODY_PART_VIEWS[parts[0].part] === "brain";
+      parts = parts.filter((x) => (BODY_PART_VIEWS[x.part] === "brain") === brain).slice(0, 4);
+      const view = brain ? "brain" : parts.some((x) => BODY_PART_VIEWS[x.part] === "whole") ? "whole" : "torso";
+      return { family: "body", view, parts, lit: clampInt(r.lit, 0, parts.length - 1, 0) };
+    }
+    if (r.family === "circuit") {
+      let parts = (Array.isArray(r.parts) ? r.parts : [])
+        .slice(0, 8)
+        .filter((x: Record<string, unknown>) => (CIRCUIT_KINDS as readonly string[]).includes(x?.kind as string))
+        .map((x: Record<string, unknown>) => ({ kind: x.kind as (typeof CIRCUIT_KINDS)[number], label: short(x.label, 2, 14), branch: clampInt(x.branch, 0, 3, 0) }));
+      // A circuit needs a supply and something for it to drive.
+      const supply = (k: string) => k === "cell" || k === "battery" || k === "ac_supply";
+      if (parts.length < 2 || !parts.some((x) => supply(x.kind)) || !parts.some((x) => !supply(x.kind))) return null;
+      // The supply is always on the main loop, and the branches are numbered 1, 2, 3 with no gaps.
+      const used = [...new Set(parts.filter((x) => x.branch > 0 && !supply(x.kind)).map((x) => x.branch))].sort();
+      parts = parts.map((x) => ({ ...x, branch: supply(x.kind) ? 0 : x.branch > 0 ? used.indexOf(x.branch) + 1 : 0 }));
+      // No more on one wire than there is room to name.
+      const room = new Map<number, number>();
+      parts = parts.filter((x) => {
+        const m = (room.get(x.branch) ?? 0) + 1;
+        room.set(x.branch, m);
+        return m <= (used.length ? 3 : 4);
+      });
+      return { family: "circuit", parts, lit: clampInt(r.lit, 0, parts.length - 1, 0) };
+    }
+    if (r.family === "table") {
+      const cols = (Array.isArray(r.cols) ? r.cols : []).map((v) => short(v, 3, 14)).filter(Boolean).slice(0, 5);
+      if (cols.length < 2) return null;
+      const rows = (Array.isArray(r.rows) ? r.rows : [])
+        .slice(0, 6)
+        .map((row) => (Array.isArray(row) ? row : []).slice(0, cols.length).map((v) => short(v, 3, 14)))
+        .filter((row) => row.length === cols.length && row.some(Boolean));
+      if (!rows.length) return null;
+      return { family: "table", title: short(r.title, 5, 30), cols, rows, litRow: clampInt(r.litRow, 0, rows.length - 1, 0), litCol: clampInt(r.litCol, -1, cols.length - 1, -1) };
+    }
+    if (r.family === "colours") {
+      const layout = oneOf(r.layout, COLOUR_LAYOUTS, "row");
+      const swatches = (Array.isArray(r.swatches) ? r.swatches : [])
+        .map((x: Record<string, unknown>) => ({ name: short(x?.name, 2, 14), hex: String(x?.hex ?? "").trim().toUpperCase() }))
+        .filter((x) => x.name && /^#[0-9A-F]{6}$/.test(x.hex))
+        .slice(0, layout === "wheel" ? 12 : 7);
+      if (swatches.length < (layout === "wheel" ? 3 : 2)) return null;
+      return { family: "colours", layout, swatches, lit: clampInt(r.lit, 0, swatches.length - 1, 0), note: short(r.note, 6, 40) };
+    }
+    if (r.family === "stave") {
+      const clef = oneOf(r.clef, CLEFS, "treble");
+      // The steps a pitch sits above the bottom line of its stave; only notes the stave can hold are kept.
+      const step = (v: string) => "CDEFGAB".indexOf(v[0]) + (Number(v[v.length - 1]) - 4) * 7 - (clef === "treble" ? 2 : -10);
+      const notes = (Array.isArray(r.notes) ? r.notes : [])
+        .slice(0, 8)
+        .map((x: Record<string, unknown>) => {
+          const length = oneOf(x?.length, NOTE_LENGTHS, "quarter");
+          if (length === "rest") return { pitch: "", length, label: "" };
+          const pitches = String(x?.pitch ?? "")
+            .replace(/♯/g, "#")
+            .replace(/♭/g, "b")
+            .split("+")
+            .map((v) => v.trim())
+            .map((v) => v.charAt(0).toUpperCase() + v.slice(1))
+            .filter((v) => /^[A-G][#b]?[1-7]$/.test(v) && step(v) >= -6 && step(v) <= 14);
+          return { pitch: [...new Set(pitches)].slice(0, 3).join("+"), length, label: short(x?.label, 2, 10) };
+        })
+        .filter((x) => x.length === "rest" || x.pitch);
+      if (!notes.some((x) => x.pitch)) return null;
+      return { family: "stave", clef, time: oneOf(r.time, TIME_SIGNATURES, ""), notes, lit: clampInt(r.lit, 0, notes.length - 1, 0) };
     }
     if (r.family === "working") {
       const lines = (Array.isArray(r.lines) ? r.lines : [])
