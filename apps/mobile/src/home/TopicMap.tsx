@@ -49,8 +49,10 @@ export default function TopicMap() {
   const lit = ideas.filter((k) => known.has(k.id)).length;
   const all = ideas.length > 0 && lit === ideas.length;
   const W = width - 48;
-  const H = 280;
-  const at = (i: number) => ({ x: SPOTS[i][0] * W, y: SPOTS[i][1] * H });
+  // The sky is only as tall as its lowest star, so a short topic leaves no empty gap above the list.
+  const FULL = 280;
+  const H = FULL * Math.max(0.3, ...ideas.map((_, i) => SPOTS[i][1])) + 26;
+  const at = (i: number) => ({ x: SPOTS[i][0] * W, y: SPOTS[i][1] * FULL });
   const [cue, react] = useFennyCue();
   useEffect(() => {
     if (!fresh.size) return;
@@ -117,7 +119,7 @@ export default function TopicMap() {
           {ideas.map((k, i) => (
             <Animated.View key={k.id} entering={riseIn((i + 3) * STAGGER_MS)} style={styles.idea}>
               <View style={[styles.num, known.has(k.id) && styles.numLit, fresh.has(k.id) && styles.numFresh]}>
-                <T size={11} weight="mono" style={{ color: known.has(k.id) ? colour.ground : colour.muted }}>
+                <T size={11.5} weight="medium" style={{ color: known.has(k.id) ? colour.ground : colour.muted, lineHeight: 15 }}>
                   {i + 1}
                 </T>
               </View>

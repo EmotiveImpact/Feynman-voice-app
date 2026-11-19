@@ -285,8 +285,8 @@ function Summary({
   const good = result.strengths.length;
   const n = gaps.length;
   const strip = [
-    ...result.strengths.map(() => colour.clear),
-    ...gaps.map((g) => (g.kind === "skipped" ? "#2A3A5E" : colour.gap)),
+    ...result.strengths.map(() => "#C3D0EA"),
+    ...gaps.map((g) => (g.kind === "skipped" ? "rgba(169,190,230,0.3)" : colour.gap)),
   ];
   return (
     <View style={{ flex: 1 }}>
@@ -359,19 +359,23 @@ function Summary({
             <Label style={{ marginTop: 26 }}>Another go</Label>
             {gaps.map((g, i) => (
               <View key={i} style={styles.line}>
-                <View style={[styles.dot, g.kind === "skipped" ? { borderWidth: 1.5, borderColor: colour.student } : { backgroundColor: colour.gap }]} />
-                <T size={15.5} style={{ flex: 1 }}>
-                  {g.title}
-                </T>
-                <T size={12.5} tone="muted" style={{ maxWidth: 110, textAlign: "right" }} lines={2}>
-                  {g.named ? "You named it" : KIND[g.kind]}
-                </T>
+                <View style={[styles.dot, { backgroundColor: g.kind === "skipped" ? colour.student : colour.gap }]} />
+                <View style={{ flex: 1, gap: 2 }}>
+                  <T size={15.5} style={{ lineHeight: 21 }}>
+                    {g.title}
+                  </T>
+                  <T size={13} style={{ color: g.kind === "skipped" ? "#B4C4E4" : "#E5A794" }}>
+                    {g.named ? "You named it" : KIND[g.kind]}
+                  </T>
+                </View>
               </View>
             ))}
           </Rise>
         )}
       </ScrollView>
       <View style={[styles.footer, { paddingBottom: Math.max(bottom, 16) }]}>
+        {/* Content fades out before it reaches the buttons. */}
+        <LinearGradient pointerEvents="none" colors={["rgba(8,9,11,0)", colour.ground]} style={styles.fade} />
         <PillButton label={n === 0 ? "Finish" : n === 1 ? "Go through the gap" : `Go through the ${n} gaps`} variant="solid" onPress={onGaps} style={{ height: 58 }} />
         {n > 0 && <PillButton label="Save them for later" onPress={onLater} style={{ marginTop: 4, backgroundColor: "transparent", borderWidth: 0 }} />}
       </View>
@@ -515,11 +519,12 @@ const styles = StyleSheet.create({
   scroll: { paddingHorizontal: 24 },
   rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 10 },
   strip: { marginTop: 26, flexDirection: "row", gap: 5 },
-  bar: { flex: 1, height: 56, borderRadius: 12 },
+  bar: { flex: 1, height: 6, borderRadius: 3 },
   line: { flexDirection: "row", alignItems: "flex-start", gap: 12, paddingVertical: 15, borderTopWidth: 1, borderTopColor: colour.hairlineSoft },
   dot: { width: 8, height: 8, borderRadius: 4, marginTop: 8 },
   panel: { marginTop: 22, borderRadius: 24, padding: 16 },
-  footer: { position: "absolute", left: 0, right: 0, bottom: 0, paddingHorizontal: 24, paddingTop: 12, backgroundColor: "rgba(10,11,13,0.9)" },
+  footer: { position: "absolute", left: 0, right: 0, bottom: 0, paddingHorizontal: 24, paddingTop: 8, backgroundColor: colour.ground },
+  fade: { position: "absolute", left: 0, right: 0, top: -44, height: 44 },
   input: {
     marginTop: 24,
     minHeight: 64,

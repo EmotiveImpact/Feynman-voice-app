@@ -381,7 +381,7 @@ function Splash({ bottom }: { bottom: number }) {
       <View pointerEvents="none" style={{ position: "absolute", left: 0, right: 0, top: "70%", alignItems: "center", gap: 14 }}>
         <Animated.View entering={FadeInDown.delay(1100).duration(1500).easing(ease)}>
           <T size={54} weight="semibold" style={{ fontFamily: font.wordmark, letterSpacing: -1.9, lineHeight: 60 }}>
-            feynman
+            Fenny
           </T>
         </Animated.View>
         <Animated.View entering={FadeIn.delay(2000).duration(900)}>
