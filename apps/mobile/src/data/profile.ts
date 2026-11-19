@@ -63,6 +63,8 @@ export interface Profile {
   fastReplies?: boolean;
   /** How Teach me explains: Smart (starts plain, adapts) or always one level. */
   explainLevel?: ExplainPref;
+  /** How Teach me's drawings look: alive (hand-drawn lines that gently wobble), hand (hand-drawn, still) or clean. */
+  drawStyle?: DrawStylePref;
   /** Teach me this thing: the photo behind a topic, by lower-case title (a file in the app's documents). */
   photos?: Record<string, string>;
 }
@@ -70,6 +72,7 @@ export interface Profile {
 export type SessionViewPref = "light" | "subtitles" | "chat";
 export type ExplainPref = "smart" | "simple" | "standard" | "deep";
 export type VoicePref = "sonic" | "phonon";
+export type DrawStylePref = "alive" | "hand" | "clean";
 
 const EMPTY: Profile = { introDone: false, name: "", subjects: [], secondsUsed: 0, topics: [], days: [], sessionView: "light" };
 const file = new File(Paths.document, "profile.json");
@@ -127,6 +130,11 @@ export function setVoice(voice: VoicePref) {
 /** Remember how Teach me explains (Settings in Me). */
 export function setExplainLevel(level: ExplainPref) {
   if ((state.explainLevel ?? "smart") !== level) set({ ...state, explainLevel: level });
+}
+
+/** Remember how Teach me's drawings look (Settings in Me). */
+export function setDrawStyle(style: DrawStylePref) {
+  if ((state.drawStyle ?? "alive") !== style) set({ ...state, drawStyle: style });
 }
 
 export function setFastReplies(on: boolean) {

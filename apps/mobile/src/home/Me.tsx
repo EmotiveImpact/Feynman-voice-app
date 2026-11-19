@@ -4,7 +4,7 @@
 // forgives a missed day a week (see docs/behavioural-design.md).
 import { Press } from "../ui/Press";
 import { ScrollView, StyleSheet, View } from "react-native";
-import { minutesLeft, PROTOTYPE_MINUTES, setExplainLevel, setFastReplies, type ExplainPref, setSessionView, setVoice, softStreak, type Profile, type VoicePref } from "../data/profile";
+import { minutesLeft, PROTOTYPE_MINUTES, setDrawStyle, setExplainLevel, setFastReplies, type DrawStylePref, type ExplainPref, setSessionView, setVoice, softStreak, type Profile, type VoicePref } from "../data/profile";
 import { warmPhononOnLaunch } from "../live/phononWarm";
 import { ViewIcon, VIEWS } from "../live/ViewMenu";
 import { colour } from "../theme";
@@ -16,6 +16,12 @@ import { In, mins } from "./Today";
 const VOICES: { id: VoicePref; label: string; note: string }[] = [
   { id: "sonic", label: "Live", note: "Cartesia Sonic" },
   { id: "phonon", label: "On this phone", note: "Phonon" },
+];
+
+const DRAWINGS: { id: DrawStylePref; label: string; note: string }[] = [
+  { id: "alive", label: "Alive", note: "Hand-drawn, gently moving" },
+  { id: "hand", label: "Hand-drawn", note: "Sketched and still" },
+  { id: "clean", label: "Clean", note: "Smooth lines" },
 ];
 
 const EXPLAIN: { id: ExplainPref; label: string; note: string }[] = [
@@ -183,6 +189,35 @@ export function Me({ profile, top, bottom, onReplayIntro }: { profile: Profile; 
                   accessibilityLabel={o.label}
                   onPress={() => setExplainLevel(o.id)}
                   style={[styles.view, styles.voice, { minWidth: "45%" }, chosen && styles.viewOn]}
+                >
+                  <T size={13.5} tone={chosen ? "text" : "muted"}>
+                    {o.label}
+                  </T>
+                  <T size={11.5} tone="muted">
+                    {o.note}
+                  </T>
+                </Press>
+              );
+            })}
+          </View>
+
+          <T size={15} style={{ marginTop: 22 }}>
+            Drawings
+          </T>
+          <T size={12.5} tone="muted" style={{ marginTop: 2 }}>
+            How the pictures in Teach me are drawn. Alive looks sketched by hand and never quite sits still.
+          </T>
+          <View style={[styles.views, { flexWrap: "wrap" }]} accessibilityRole="radiogroup" accessibilityLabel="Drawings">
+            {DRAWINGS.map((o) => {
+              const chosen = (profile.drawStyle ?? "alive") === o.id;
+              return (
+                <Press
+                  key={o.id}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: chosen }}
+                  accessibilityLabel={o.label}
+                  onPress={() => setDrawStyle(o.id)}
+                  style={[styles.view, styles.voice, { minWidth: "30%" }, chosen && styles.viewOn]}
                 >
                   <T size={13.5} tone={chosen ? "text" : "muted"}>
                     {o.label}
