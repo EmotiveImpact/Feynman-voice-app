@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkLesson, handleLesson, quoteInNotes } from "../src/lesson";
+import { checkLesson, handleLesson, oneDevice, quoteInNotes } from "../src/lesson";
 
 const NOTES = "The cell membrane is a phospholipid bilayer. It is selectively permeable, so small non-polar molecules pass through freely while ions need channel proteins.";
 
@@ -141,5 +141,38 @@ describe("POST /api/lesson", () => {
 
   it("needs a topic and an idea", async () => {
     expect((await handleLesson(post({ topic: "x" }), { OPENAI_API_KEY: "k" })).status).toBe(400);
+  });
+});
+
+describe("variety of drawings", () => {
+  const pair = (a: string, b: string) => ({ family: "pair", left: { label: a, shape: "line", count: 1, note: "" }, right: { label: b, shape: "curve", count: 1, note: "" }, lit: "right" });
+  const stairs = { family: "stairs", steps: ["Ion", "Channel", "Inside"], at: 1 };
+  const withScenes = (a: object, b: object) => {
+    const d = draft() as unknown as { bites: Record<string, unknown>[] };
+    d.bites[0].scene = a;
+    d.bites[1].scene = b;
+    return d;
+  };
+
+  it("spots a lesson that draws every bite the same way", () => {
+    expect(oneDevice(checkLesson(withScenes(pair("In", "Out"), pair("Ion", "Fat")) as never, req))).toBe("pair");
+    expect(oneDevice(checkLesson(withScenes(pair("In", "Out"), stairs) as never, req))).toBe("");
+    expect(oneDevice(checkLesson(draft() as never, req))).toBe("");
+  });
+
+  it("asks once for different drawings", async () => {
+    const res = await handleLesson(post({ ...req, idea: "idea variety" }), { OPENAI_API_KEY: "k" }, openAIFetch([withScenes(pair("In", "Out"), pair("Ion", "Fat")), withScenes(pair("In", "Out"), stairs)]));
+    const j = await res.json();
+    expect(j.cost.lines).toHaveLength(2);
+    expect(j.lesson.bites.map((b: { scene: { family: string } }) => b.scene.family)).toEqual(["pair", "stairs"]);
+  });
+
+  it("keeps the first lesson when the second try breaks", async () => {
+    const broken = draft();
+    broken.bites[1].puzzle.answer = ["nonsense"];
+    const res = await handleLesson(post({ ...req, idea: "idea spare" }), { OPENAI_API_KEY: "k" }, openAIFetch([withScenes(pair("In", "Out"), pair("Ion", "Fat")), broken]));
+    expect(res.status).toBe(200);
+    const j = await res.json();
+    expect(j.lesson.bites[0].scene.family).toBe("pair");
   });
 });

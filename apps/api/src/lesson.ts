@@ -264,6 +264,12 @@ export function checkLesson(d: Draft, req: LessonRequest): Lesson {
   return { idea: req.idea, bites, recap: d.recap, explainBack: d.explainBack };
 }
 
+/** The one device every bite used, when a lesson of two or more bites drew them all the same way. Otherwise "". */
+export function oneDevice(lesson: Lesson): string {
+  const fams = lesson.bites.map((b) => b.scene?.family ?? "");
+  return fams.length > 1 && fams[0] && fams.every((f) => f === fams[0]) ? fams[0] : "";
+}
+
 function userMessage(req: LessonRequest, retry?: string): string {
   const notes = req.notes?.trim();
   return [
@@ -361,11 +367,13 @@ export async function buildLesson(env: Env, req: LessonRequest, fetchImpl?: type
   let draft = brain === "claude" ? draftClaude : draftOpenAI;
   const cost: CostLine[] = [];
   let problem: string | undefined;
+  let spare: { lesson: Lesson; model: string } | undefined;
   for (let attempt = 0; attempt < 2; attempt++) {
     let r: Awaited<ReturnType<typeof draftOpenAI>>;
     try {
       r = await draft(env, req, problem, fetchImpl);
     } catch (e) {
+      if (spare) return { ...spare, cost, cached: false };
       // If Claude is down or its key is refused, the learner still gets a
       // lesson: switch to OpenAI for the rest of this request.
       if (draft !== draftClaude || !env.OPENAI_API_KEY) throw e;
@@ -381,11 +389,24 @@ export async function buildLesson(env: Env, req: LessonRequest, fetchImpl?: type
         problem = "Most quotes were not copied word for word from the notes.";
         continue;
       }
+      // Three pictures of the same kind teach less than three different ones.
+      const same = oneDevice(lesson);
+      if (same && attempt === 0) {
+        // The lesson is still a good one: keep it in case the second try fails.
+        spare = { lesson, model: r.model };
+        problem = `Every bite used the same device (${same}). Keep the best one and give the other bites a different device that fits their own point.`;
+        continue;
+      }
+      // A bite with no drawing is a gap in the visual language worth knowing about.
+      lesson.bites.forEach((b, i) => {
+        if (!b.scene) console.warn("lesson: no device fits", JSON.stringify({ topic: req.topic, idea: req.idea, bite: i + 1, caption: b.caption }));
+      });
       const result = { lesson, model: r.model, cost };
       // Only lessons that do not depend on what this learner said are shared.
       if (!req.said?.trim()) cache.set(key, result);
       return { ...result, cached: false };
     } catch (e) {
+      if (spare) return { ...spare, cost, cached: false };
       if (attempt === 1) throw e;
       problem = (e as Error).message + ".";
     }
