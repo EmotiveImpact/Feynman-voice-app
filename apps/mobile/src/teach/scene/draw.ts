@@ -2322,6 +2322,11 @@ function drawThingTween(c: SkCanvas, p: SkPaint, from: string, to: string, u: nu
   const pa = qa[0] === "person" ? KIT_POSES[qa[1] || "stand"] : undefined;
   const pb = qb[0] === "person" ? KIT_POSES[qb[1] || "stand"] : undefined;
   if (!pa || !pb) {
+    // The same drawing on its way somewhere: drawn once, never as two fading copies.
+    if (from === to) {
+      drawThing(c, p, to, x, y, h, a, lit, 1, w, glow, fx);
+      return;
+    }
     drawThing(c, p, from, x, y, h, a * (1 - u), false, 1, w, false, fx);
     drawThing(c, p, to, x, y, h, a * u, lit, 1, w, glow, fx);
     return;
@@ -2402,7 +2407,7 @@ function drawCarried(c: SkCanvas, p: SkPaint, cr: Carry, thing: string, u: numbe
   let turn = cr.fx + (fx - cr.fx) * u;
   if (far && isPerson(thing)) turn = u < 0.15 ? cr.fx + (way - cr.fx) * (u / 0.15) : u > 0.85 ? way + (fx - way) * ((u - 0.85) / 0.15) : way;
   const steps = Math.max(2, Math.round(Math.abs(dx) / 20));
-  const stride = far ? Math.sin(u * Math.PI * steps) * Math.min(1, 6 * u * (1 - u)) : 0;
+  const stride = far && isPerson(thing) ? Math.sin(u * Math.PI * steps) * Math.min(1, 6 * u * (1 - u)) : 0;
   const bob = far ? -Math.abs(stride) * 0.03 * h : 0;
   drawThingTween(c, p, cr.thing, thing, u, cr.x + dx * u, cr.y + (y - cr.y) * u + bob, cr.h + (h - cr.h) * u, a, lit && u > 0.6, W0, glow, Math.abs(turn) < 0.2 ? (turn < 0 ? -0.2 : 0.2) : turn, stride);
 }
