@@ -288,7 +288,7 @@ export interface MapScene {
 export interface ThingsScene {
   family: "things";
   layout: "row" | "versus" | "chain" | "orbit" | "scale" | "parts";
-  items: { thing: string; label: string; size: number; tone?: Tone }[];
+  items: { thing: string; label: string; size: number; tone?: Tone; mark?: Gesture }[];
   /** parts layout: named parts of the one thing, each at a spot on it. Older servers leave it out. */
   parts?: { label: string; at: string }[];
   lit: number;
@@ -477,6 +477,9 @@ export type Scene =
   | ColoursScene
   | StaveScene;
 
+/** A marker gesture drawn over a thing: crossed out (ruled out, ended, wrong) or ticked (chosen, allowed, right). */
+export type Gesture = "" | "cross" | "tick";
+
 /** Who does what to whom, and where: people and things on one ground line, with what happens between them. */
 export interface StageScene {
   family: "stage";
@@ -484,7 +487,8 @@ export interface StageScene {
   place: string;
   placeLabel: string;
   placeTone?: Tone;
-  actors: { thing: string; label: string; size: "small" | "normal" | "big"; tone?: Tone }[];
+  /** then: who this actor turns into once the acts are done (the same person in a new pose), or "". mark: a cross or a tick drawn over them by hand. */
+  actors: { thing: string; label: string; size: "small" | "normal" | "big"; tone?: Tone; then?: string; mark?: Gesture }[];
   /** to -1 is the place. says and thinks ignore to. */
   acts: { from: number; to: number; kind: "says" | "thinks" | "gives" | "goes" | "against" | "with"; label: string }[];
   lit: number;

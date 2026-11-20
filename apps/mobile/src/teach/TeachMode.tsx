@@ -326,11 +326,13 @@ export function TeachMode({
               </T>
             </Animated.View>
             {/* Morph between ideas: the picture changes in place. The last one
-                fades out where it stands while the next one draws. */}
+                fades out where it stands while the next one draws, and a person
+                or thing in both moves across instead of being drawn again. */}
             <Animated.View key={`scene${filmBite}`} entering={FadeIn.duration(600)} exiting={reduce ? undefined : FadeOut.duration(600)}>
               {filmNow.scene ? (
                 <SceneView
                   scene={filmNow.scene}
+                  from={filmBite > 0 ? lesson.bites[filmBite - 1].scene : null}
                   build={filmBite % 2 === 0 ? buildA : buildB}
                   moving={filmBite % 2 === 0 ? movingA : movingB}
                   label={filmNow.caption || filmNow.title}
