@@ -8,11 +8,11 @@
 // The look comes from Me: clean lines, hand-drawn lines, or hand-drawn lines
 // that are redrawn a few times a second (the wobble), which keeps going even
 // while the film holds the scene still. Reduce Motion stops the wobble.
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { View, type LayoutChangeEvent } from "react-native";
 import { Canvas, Group, Picture, createPicture, useFont } from "@shopify/react-native-skia";
 import { useDerivedValue, useFrameCallback, useReducedMotion, useSharedValue, type SharedValue } from "react-native-reanimated";
-import { BOIL_FPS, BOIL_GENTLE, drawScene, speedAt, VIEW_H, VIEW_W } from "./draw";
+import { BOIL_FPS, BOIL_GENTLE, carryPlan, drawScene, speedAt, VIEW_H, VIEW_W } from "./draw";
 import type { Change, Scene } from "./types";
 import { T } from "../../ui/kit";
 import { useProfile } from "../../data/profile";
@@ -27,6 +27,7 @@ export function SceneView({
   caption,
   build,
   moving,
+  from,
 }: {
   scene: Scene;
   changes?: Change[];
@@ -37,6 +38,8 @@ export function SceneView({
   build?: SharedValue<number>;
   /** Driven by the film: 1 once the scene may move. */
   moving?: SharedValue<number>;
+  /** The picture this one follows. A person or thing in both moves across to its new place and is not drawn again. */
+  from?: Scene | null;
 }) {
   const [width, setWidth] = useState(0);
   const font = useFont(INTER, 9.5);
@@ -51,12 +54,17 @@ export function SceneView({
   // The wobble's own clock: a whole number that steps a few times a second.
   const wobble = useSharedValue(0);
   const boil = useSharedValue(0);
+  // What this picture keeps from the one before, and how long it has been up. The age runs
+  // even while the film holds the build, so a kept thing never waits at its old place.
+  const carry = useMemo(() => carryPlan(from, scene), [from, scene]);
+  const age = useSharedValue(reduce || !carry ? 9 : 0);
 
   useFrameCallback((info) => {
     "worklet";
     const dt = Math.min(0.05, (info.timeSincePreviousFrame ?? 16) / 1000);
     const target = value ? value.value : 0;
     if (build) intro.value = build.value;
+    if (age.value < 9) age.value += dt;
     if (reduce) {
       v.value = target;
       return;
@@ -81,7 +89,7 @@ export function SceneView({
       // This runs on the UI thread, where an error closes the app. A drawing
       // that cannot draw is left blank instead.
       try {
-        drawScene(canvas, scene, changes, { t: t.value, T: clock.value, v: v.value, intro: intro.value, still: reduce, hand, boil: alive ? boil.value : 0, amp: BOIL_GENTLE }, font);
+        drawScene(canvas, scene, changes, { t: t.value, T: clock.value, v: v.value, intro: intro.value, still: reduce, hand, boil: alive ? boil.value : 0, amp: BOIL_GENTLE, age: age.value, carry }, font);
       } catch (e) {
         // Nothing drawn this frame. Say why in development, so a blank panel is never a mystery.
         if (__DEV__) console.warn("Scene could not draw:", String(e));

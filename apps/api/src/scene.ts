@@ -125,6 +125,9 @@ type ThingName = string;
 
 /** Colour for meaning: one soft wash behind a thing. Green for good, red for bad, nothing otherwise. */
 export const TONES = ["", "good", "bad"] as const;
+/** A marker gesture drawn over a thing: crossed out or ticked. */
+export const GESTURES = ["", "cross", "tick"] as const;
+export type Gesture = (typeof GESTURES)[number];
 export type Tone = (typeof TONES)[number];
 
 // The kit of parts. A person is a pose with any feeling, any hat and any thing
@@ -163,6 +166,22 @@ export function asThing(x: unknown): string {
     return sign ? `place:${q[1]}:${sign}` : `place:${q[1]}`;
   }
   return "";
+}
+
+/**
+ * Who an actor turns into once the acts are done: the same person in a new
+ * pose. Both must be built people, the result must differ, and the hat is kept
+ * so they stay the same character.
+ */
+export function thenOf(thing: string, x: unknown): string {
+  const then = asThing(x);
+  if (!then || then === thing || !thing.startsWith("person:") || !then.startsWith("person:")) return "";
+  const a = thing.split(":");
+  const b = then.split(":");
+  while (b.length < 5) b.push("");
+  if (a[3]) b[3] = a[3];
+  const out = b.join(":").replace(/:+$/, "");
+  return out === thing ? "" : out;
 }
 
 export interface Thing {
@@ -426,7 +445,7 @@ export interface MapScene {
 export interface ThingsScene {
   family: "things";
   layout: (typeof THING_LAYOUTS)[number];
-  items: { thing: ThingName; label: string; size: number; tone: Tone }[];
+  items: { thing: ThingName; label: string; size: number; tone: Tone; mark: Gesture }[];
   /** The parts layout only: 2 to 4 named parts, each pointed at where it sits. Empty otherwise. */
   parts: { label: string; at: (typeof PART_SPOTS)[number] }[];
   lit: number;
@@ -554,7 +573,8 @@ export interface StageScene {
   placeLabel: string;
   /** A soft wash of colour behind the place: good, bad or "". */
   placeTone: Tone;
-  actors: { thing: string; label: string; size: (typeof STAGE_SIZES)[number]; tone: Tone }[];
+  /** then: the same person as they are once the acts are done (a new pose), or "". mark: a cross or a tick drawn over them. */
+  actors: { thing: string; label: string; size: (typeof STAGE_SIZES)[number]; tone: Tone; then: string; mark: Gesture }[];
   /** to -1 is the place. says and thinks ignore to. */
   acts: { from: number; to: number; kind: (typeof STAGE_KINDS)[number]; label: string }[];
   lit: number;
@@ -733,7 +753,7 @@ export const SCENE_SCHEMA = {
     obj({ family: en(["zoom"]), levels: arr(obj({ label: str, size: str })), at: int }),
     obj({ family: en(["brace"]), items: strs, groups: arr(obj({ label: str, from: int, to: int })), lit: int }),
     obj({ family: en(["map"]), region: en(MAP_REGION_NAMES), borders: bool, places: arr(obj({ label: str, x: num, y: num, lat: num, lon: num })), routes: arr(obj({ from: int, to: int })), lit: int }),
-    obj({ family: en(["things"]), layout: en(THING_LAYOUTS), items: arr(obj({ thing: str, label: str, size: num, tone: en(TONES) })), parts: arr(obj({ label: str, at: en(PART_SPOTS) })), lit: int }),
+    obj({ family: en(["things"]), layout: en(THING_LAYOUTS), items: arr(obj({ thing: str, label: str, size: num, tone: en(TONES), mark: en(GESTURES) })), parts: arr(obj({ label: str, at: en(PART_SPOTS) })), lit: int }),
     obj({ family: en(["spectra"]), item: str, rows: arr(obj({ left: str, right: str, at: num })), lit: int }),
     obj({ family: en(["pattern"]), items: strs, gap: int, answer: str, rule: str }),
     obj({ family: en(["machine"]), name: str, inputs: strs, outputs: strs, lit: int }),
@@ -748,7 +768,7 @@ export const SCENE_SCHEMA = {
     obj({ family: en(["bonds"]), shape: en(BOND_SHAPES), atoms: strs, orders: arr(int), lit: int, name: str }),
     obj({ family: en(["lever"]), load: str, effort: str, pivot: str, at: num }),
     obj({ family: en(["working"]), lines: arr(obj({ text: str, note: str })), lit: int }),
-    obj({ family: en(["stage"]), place: str, placeLabel: str, placeTone: en(TONES), actors: arr(obj({ thing: str, label: str, size: en(STAGE_SIZES), tone: en(TONES) })), acts: arr(obj({ from: int, to: int, kind: en(STAGE_KINDS), label: str })), lit: int }),
+    obj({ family: en(["stage"]), place: str, placeLabel: str, placeTone: en(TONES), actors: arr(obj({ thing: str, label: str, size: en(STAGE_SIZES), tone: en(TONES), then: str, mark: en(GESTURES) })), acts: arr(obj({ from: int, to: int, kind: en(STAGE_KINDS), label: str })), lit: int }),
     obj({ family: en(["quote"]), text: str, phrase: str, note: str, by: str }),
     obj({ family: en(["body"]), parts: arr(obj({ part: str, label: str })), lit: int }),
     obj({ family: en(["circuit"]), parts: arr(obj({ kind: en(CIRCUIT_KINDS), label: str, branch: int })), lit: int }),
@@ -895,7 +915,7 @@ geometry: shape and labels in a fixed order, "" to leave one out. right_triangle
 bonds: shape line (2 to 4 atoms in a row, like O=C=O), bent (exactly 3, the middle one first raised, like water: H, O, H), star (atom 0 in the centre and 2 to 5 round it, like methane), chain (3 to 6 in a zigzag, like a carbon chain) or ring (3 to 6 in a closed ring). atoms = element symbols in drawing order. orders = the bond between each pair in order, 1 single, 2 double, 3 triple (star: centre to each; ring: one more to close it). lit = index of the atom the lesson is about. name = the molecule's name. Only real molecules with their real bonds.
 lever: load, effort and pivot = labels (1 or 2 words), at = where the pivot sits along the beam, 0.2 (close to the load, so the effort is small) to 0.5 (the middle, so the effort equals the load) to 0.6.
 working: lines 2 to 5 in order (text = the line as written, up to 26 characters, like "2x + 3 = 11"; note = what was done to get it, 2 to 5 words, "" for the first), lit = index of the line the lesson is about. Every line must follow from the one before.
-stage: people, things and a place standing on one ground line, with what happens between them. actors = 1 to 3 from the things list (thing, a label of 1 to 3 words, size small, normal or big: big for the powerful or the adult, small for the weak or the child, normal otherwise). place = one thing from the list for where it happens (a building or a landscape), or "", and placeLabel = its name or "". acts = 1 or 2 things that happen: from = an actor index, to = an actor index or -1 for the place, kind says (a speech bubble over from; label = the 1 to 3 words said), thinks (a thought bubble; label = the thought), gives or goes (an arrow from one to the other; label = what is given, or why they go), against (in conflict; label = what over) or with (allied; label = the tie). lit = index of the actor the lesson is about. Choose each person by what they do or who they are: a pose (person_running, person_refusing), a pair or group (people_arguing, march, queue) or a role (monarch, merchant, judge, soldier, farmer). Or build the exact person from the kit (person:pointing:angry:crown) and the exact building (place:hall:scales). People turn to face whoever they act on. Use stage when the idea is an event or a relationship between people, never for an abstract process.
+stage: people, things and a place standing on one ground line, with what happens between them. actors = 1 to 3 from the things list (thing, a label of 1 to 3 words, size small, normal or big: big for the powerful or the adult, small for the weak or the child, normal otherwise). place = one thing from the list for where it happens (a building or a landscape), or "", and placeLabel = its name or "". acts = 1 or 2 things that happen: from = an actor index, to = an actor index or -1 for the place, kind says (a speech bubble over from; label = the 1 to 3 words said), thinks (a thought bubble; label = the thought), gives or goes (an arrow from one to the other; label = what is given, or why they go), against (in conflict; label = what over) or with (allied; label = the tie). lit = index of the actor the lesson is about. Choose each person by what they do or who they are: a pose (person_running, person_refusing), a pair or group (people_arguing, march, queue) or a role (monarch, merchant, judge, soldier, farmer). Or build the exact person from the kit (person:pointing:angry:crown) and the exact building (place:hall:scales). People turn to face whoever they act on. Use stage when the idea is an event or a relationship between people, never for an abstract process. then (on an actor, "" almost always): the same person as they are once the acts are done, built from the kit with a new pose and mood, and they change where they stand as the learner watches (thing person:asking:worried:cap, then person:sad:sad:cap). Use it for a reaction or a result the bite states (asks and is refused, stands and then kneels, loses and then leaves). At most one actor, and only when the actor is a kit person.
 quote: text = the exact words, up to 20 words (a line from the text studied, a statute or a definition, or a sentence in the language being learned). phrase = the 1 to 5 words inside it that the lesson turns on, copied exactly. note = what that phrase does or means, in 2 to 7 words. by = where it is from in 1 to 4 words ("Macbeth, Act 1"), or "". Only quote words you are sure are exact: from the notes, or a text you know word for word. If unsure of the wording, use another device.
 body: the human figure, or the brain, drawn quietly with only the parts you name drawn on it, each where it really is, and its name at the side. parts 1 to 4 (part = a name from the lists below, label = its name as the lesson uses it, 1 to 3 words), lit = index of the part the lesson is about. The view is chosen for you: head to hips for organs, the whole figure when a joint, a limb muscle or a long bone is named, the brain from its left side for the brain's areas (these never mix with the other lists). The figure faces you, so its left is on your right, as in every anatomy book.
   Organs and trunk: ${Object.keys(BODY_PART_VIEWS).filter((k) => BODY_PART_VIEWS[k] === "torso").join(", ")}.
@@ -940,7 +960,9 @@ What makes a good scene:
 - Labels name real things (Serbia, Supply, Sucrose), never placeholder steps like "One move", "Start" or "Allies react".
 - Plan the pictures first: devices lists the device for each bite, in order, all different (or none). Then write each bite's scene with its planned device. Most ideas fit more than one device honestly, so the student sees something new every time.
 - links is the device most often reached for and most often the wrong one. Use it only when the idea really is a chain of causes or a network, and at most once a lesson. Before links, check: levels climbed in order (stairs), dates (timeline), stages gone round (radial with cycle), how many out of how many (units), a tipping point (threshold), a range (spectrum), a real object or person (things).
-- Never the same device twice in one lesson, pair and things included.
+- Never the same device twice in one lesson, pair and things included. The one exception is a story: stage may be used for two bites in a row when it is the same people in the next moment of the same event.
+- Movement between pictures. When a person or thing in one bite is also in the next (the same thing name, the same label, or a kit person in the same hat), the learner sees it walk across to its new place and change pose; it is not drawn again. So when a lesson follows one person or one thing, keep its label and its hat from bite to bite and change only the pose and the mood. Never keep a label for something that is not the same one.
+- mark (on an item of things or an actor of a stage, "" almost always): a marker gesture drawn over it by hand at the end. cross = ruled out, ended, banned or wrong. tick = chosen, allowed or right. Only for a verdict the bite itself states, at most two in a picture, and never on a group of people.
 - Near neighbours. equation or machine: equation when the terms themselves combine, machine when one thing does the work. case or test: a case weighs reasons for a claim, a test runs one thing through fixed conditions. bridge or mirror: mirror for one to one partners, bridge when several map to one. spread or a bell graph: spread when it is about cases or people, graph for a law. scatter or graph: scatter for data and how tightly it follows, graph for the relationship itself. matrix or grid: a matrix says what happens in each cell, a grid places one item. spectra or spectrum: one scale is a spectrum. working or links: working for written lines of maths, logic or code. forces or balance: forces act on one object in directions, a balance weighs two sides.
 - More near neighbours. table or matrix: a matrix crosses two choices and fills every combination, a table lists rows of words or values under headings. body or things with parts: body for where something is in a person, a cut-through thing with parts for the inside of one organ. colours or spectrum: colours only when the colour is the fact itself, a spectrum for any other scale. map with a region or without: a region whenever real places are named, a sketch map only for an imagined or schematic place.
 - compare is for real quantities in one unit. Without real numbers, choose by the question the idea answers instead.
@@ -1423,7 +1445,9 @@ function tidyScene(s: unknown): Scene | null {
       let items = (Array.isArray(r.items) ? r.items : [])
         .filter((t: Record<string, unknown>) => t && asThing(t.thing))
         .slice(0, max)
-        .map((t: Record<string, unknown>) => ({ thing: asThing(t.thing), label: short(t.label, layout === "row" || layout === "scale" ? 4 : 3, 26), size: Number(t.size) > 0 ? Number(t.size) : 1, tone: oneOf(t.tone, TONES, "") }));
+        .map((t: Record<string, unknown>) => ({ thing: asThing(t.thing), label: short(t.label, layout === "row" || layout === "scale" ? 4 : 3, 26), size: Number(t.size) > 0 ? Number(t.size) : 1, tone: oneOf(t.tone, TONES, ""), mark: oneOf(t.mark, GESTURES, "") }));
+      // A cross or a tick is a verdict on one thing among others: at most two, never on a lone thing, in an orbit or on a labelled diagram.
+      if (items.length < 2 || layout === "orbit" || layout === "parts" || items.filter((t) => t.mark).length > 2) items = items.map((t) => ({ ...t, mark: "" as Gesture }));
       // Colour is for good against bad: no wash on a lone thing, in an orbit or on a labelled diagram,
       // never the same colour on everything, and at most two in a picture.
       const toned = items.filter((t) => t.tone);
@@ -1560,8 +1584,15 @@ function tidyScene(s: unknown): Scene | null {
       const actors = (Array.isArray(r.actors) ? r.actors : [])
         .filter((t: Record<string, unknown>) => t && asThing(t.thing))
         .slice(0, 3)
-        .map((t: Record<string, unknown>) => ({ thing: asThing(t.thing), label: short(t.label, 3, 22), size: oneOf(t.size, STAGE_SIZES, "normal"), tone: oneOf(t.tone, TONES, "") }));
+        .map((t: Record<string, unknown>) => ({ thing: asThing(t.thing), label: short(t.label, 3, 22), size: oneOf(t.size, STAGE_SIZES, "normal"), tone: oneOf(t.tone, TONES, ""), then: thenOf(asThing(t.thing), t.then), mark: oneOf(t.mark, GESTURES, "") }));
       if (!actors.length) return null;
+      // One person changes at a time, and at most two verdicts: more than that and the eye has nowhere to rest.
+      let changed = false;
+      for (const t of actors) {
+        if (t.then && changed) t.then = "";
+        if (t.then) changed = true;
+      }
+      if (actors.filter((t) => t.mark).length > 2) for (const t of actors) t.mark = "";
       const place = asThing(r.place);
       const n = actors.length;
       const bubble = (k: string) => k === "says" || k === "thinks";

@@ -22,6 +22,7 @@
 import { Skia, type SkCanvas, type SkFont, type SkPaint } from "@shopify/react-native-skia";
 
 import { BODY_FRAMES, BODY_PARTS } from "./bodyparts";
+import { carryPlan, stageSpots, thingsSpots, type Carry } from "./carry";
 import { hasThing, isPerson } from "./kit";
 import { KIT_FACES, KIT_HATS, KIT_POSES, KIT_SHELLS } from "./kitparts";
 import { OUTLINES } from "./outlines";
@@ -50,7 +51,13 @@ export interface Frame {
   boil?: number;
   /** How far the boil moves a line, in panel units. */
   amp?: number;
+  /** Seconds since this picture took the place of the last one. It always runs, even while the film holds the build. */
+  age?: number;
+  /** Things kept from the picture before, in the order this picture lists its own: where each stood, or null. They move across; they are not drawn again. */
+  carry?: (Carry | null)[];
 }
+
+export { carryPlan, type Carry };
 
 /** Kept for the demo, which compares clean and hand-drawn. The app takes its style from Me (see SceneView). */
 export const HAND_DRAWN = false;
@@ -217,6 +224,16 @@ function spark(c: SkCanvas, p: SkPaint, x: number, y: number, a: number, colour 
   }
 }
 
+/** While a label fades in, its letters arrive left to right, as if written. Past this much of the fade the whole label is there. */
+const WRITE = 0.6;
+
+/** As much of a label as has been written so far. */
+function written(text: string, a: number) {
+  "worklet";
+  if (a >= WRITE) return text;
+  return text.slice(0, Math.max(1, Math.ceil(text.length * (a / WRITE))));
+}
+
 /** Text drawn exactly where asked. For turned or scaled drawing, where the panel's edges are not where they seem. */
 function rawLabel(c: SkCanvas, p: SkPaint, font: SkFont | null, text: string, x: number, y: number, align: "left" | "center" | "right", colour = LAB, a = 1) {
   "worklet";
@@ -224,7 +241,7 @@ function rawLabel(c: SkCanvas, p: SkPaint, font: SkFont | null, text: string, x:
   const w = font.getTextWidth(text);
   const left = align === "center" ? x - w / 2 : align === "right" ? x - w : x;
   fill(p, colour, a);
-  c.drawText(text, left, y + 3.3, p, font);
+  c.drawText(written(text, a), left, y + 3.3, p, font);
 }
 
 /** A label. It is nudged sideways if it would run off the panel, so no word is ever lost over the edge. */
@@ -235,7 +252,7 @@ function label(c: SkCanvas, p: SkPaint, font: SkFont | null, text: string, x: nu
   const left = align === "center" ? x - w / 2 : align === "right" ? x - w : x;
   const kept = Math.max(4, Math.min(left, VIEW_W - 4 - w));
   fill(p, colour, a);
-  c.drawText(text, kept, y + 3.3, p, font);
+  c.drawText(written(text, a), kept, y + 3.3, p, font);
 }
 
 /** A label on a small patch of the panel's own colour, so a line passing behind it stops short of the words. */
@@ -2266,6 +2283,130 @@ export function drawThing(c: SkCanvas, p: SkPaint, name: string, x: number, y: n
   }
 }
 
+// ---- movement: one figure changing pose, marker gestures, and things kept from the picture before ----
+
+/** The figure part way between two poses. Head, body, arms, legs and feet move; anything else a pose has (a chair, a prop) is left to fade. */
+function tweenPose(a: ThingMark[], b: ThingMark[], u: number) {
+  "worklet";
+  const out: ThingMark[] = [];
+  const n = Math.min(a.length, b.length, 8);
+  for (let i = 0; i < n; i++) {
+    const ma = a[i];
+    const mb = b[i];
+    if (ma[0] !== mb[0] || ma.length !== mb.length) break;
+    const m: ThingMark = [ma[0]];
+    for (let j = 1; j < ma.length; j++) m.push((ma[j] as number) + ((mb[j] as number) - (ma[j] as number)) * u);
+    out.push(m);
+  }
+  return out;
+}
+
+/**
+ * One thing turning into another, u from 0 to 1. Two built people are the same
+ * figure, so the body moves from one pose to the other; the face changes half
+ * way, and a hat or a held thing that differs fades. Anything else changes by
+ * one drawing fading as the other arrives, in the same place.
+ */
+function drawThingTween(c: SkCanvas, p: SkPaint, from: string, to: string, u: number, x: number, y: number, h: number, a: number, lit: boolean, w = W0, glow = true, fx = 1, stride = 0) {
+  "worklet";
+  if ((u <= 0 || from === to) && !stride) {
+    drawThing(c, p, u <= 0 ? from : to, x, y, h, a, lit, 1, w, glow, fx);
+    return;
+  }
+  if (u >= 1) {
+    drawThing(c, p, to, x, y, h, a, lit, 1, w, glow, fx);
+    return;
+  }
+  const qa = from.split(":");
+  const qb = to.split(":");
+  const pa = qa[0] === "person" ? KIT_POSES[qa[1] || "stand"] : undefined;
+  const pb = qb[0] === "person" ? KIT_POSES[qb[1] || "stand"] : undefined;
+  if (!pa || !pb) {
+    drawThing(c, p, from, x, y, h, a * (1 - u), false, 1, w, false, fx);
+    drawThing(c, p, to, x, y, h, a * u, lit, 1, w, glow, fx);
+    return;
+  }
+  const colour = lit ? BLUE : SIL;
+  const al = lit ? a : a * 0.82;
+  if (lit && glow) thingHalo(c, x, y, h, a);
+  const mid = tweenPose(pa.m, pb.m, u);
+  // Walking: the legs swing from the hip, one forward as the other goes back, and the feet go with them.
+  if (stride && mid.length >= 6) {
+    for (let i = 4; i < mid.length; i++) {
+      const m = mid[i];
+      const sw = (i % 2 === 0 ? 1 : -1) * stride * 0.17;
+      if (i < 6) for (let j = 1; j < m.length; j += 2) m[j] = (m[j] as number) + sw * ((j - 1) / (m.length - 3));
+      else for (let j = 1; j < m.length; j += 2) m[j] = (m[j] as number) + sw;
+    }
+  }
+  drawMarks(c, p, mid, x, y, h, al, colour, 1, w, fx, h);
+  const out = clamp(1 - u * 2.5);
+  const inn = clamp(u * 2.5 - 1.5);
+  if (pa.m.length > mid.length && out > 0) drawMarks(c, p, pa.m.slice(mid.length), x, y, h, al * out, colour, 1, w, fx, h);
+  if (pb.m.length > mid.length && inn > 0) drawMarks(c, p, pb.m.slice(mid.length), x, y, h, al * inn, colour, 1, w, fx, h);
+  const hx = x + fx * (pa.head[0] + (pb.head[0] - pa.head[0]) * u) * h;
+  const hy = y + (pa.head[1] + (pb.head[1] - pa.head[1]) * u) * h;
+  const look = pa.look + (pb.look - pa.look) * u;
+  const face = (u < 0.5 ? KIT_FACES[qa[2] || pa.mood] : KIT_FACES[qb[2] || pb.mood]) || KIT_FACES.happy;
+  if (h >= 9) drawMarks(c, p, face, hx + fx * look * 0.07 * h, hy, h, al, colour, 1, w, fx, h);
+  const hatA = qa[3] ? KIT_HATS[qa[3]] : undefined;
+  const hatB = qb[3] ? KIT_HATS[qb[3]] : undefined;
+  if (hatA && qa[3] === qb[3]) drawMarks(c, p, hatA, hx, hy, h, al, colour, 1, w, fx, h);
+  else {
+    if (hatA) drawMarks(c, p, hatA, hx, hy, h, al * (1 - u), colour, 1, w, fx, h);
+    if (hatB) drawMarks(c, p, hatB, hx, hy, h, al * u, colour, 1, w, fx, h);
+  }
+  const gx = x + fx * (pa.hand[0] + (pb.hand[0] - pa.hand[0]) * u + 0.1) * h;
+  const gy = y + (pa.hand[1] + (pb.hand[1] - pa.hand[1]) * u - 0.2) * h;
+  const heldA = qa[4] ? THINGS[qa[4]] : undefined;
+  const heldB = qb[4] ? THINGS[qb[4]] : undefined;
+  if (heldA && qa[4] === qb[4]) drawMarks(c, p, heldA, gx, gy, h * 0.3, al, colour, 1, w, 1, h * 0.3);
+  else {
+    if (heldA) drawMarks(c, p, heldA, gx, gy, h * 0.3, al * (1 - u), colour, 1, w, 1, h * 0.3);
+    if (heldB) drawMarks(c, p, heldB, gx, gy, h * 0.3, al * u, colour, 1, w, 1, h * 0.3);
+  }
+}
+
+/** A marker gesture over a thing, drawn stroke by stroke as k goes from 0 to 1: a cross through it, or a tick beside its head. */
+function gesture(c: SkCanvas, p: SkPaint, kind: string | undefined, x: number, y: number, h: number, k: number, fx = 1) {
+  "worklet";
+  if (!kind || k <= 0) return;
+  if (kind === "cross") {
+    const r = h * 0.78;
+    line(c, p, x - r, y - r, x + r, y + r, 0.95, SIL, clamp(k * 2));
+    line(c, p, x + r, y - r, x - r, y + r, 0.95, SIL, clamp(k * 2 - 1));
+  } else if (kind === "tick") {
+    // A tick beside the top of the thing, on the side a person faces away from, so it never crosses a face or what they hold.
+    const r = Math.max(6, h * 0.34);
+    const tx = x - fx * (h * 0.78 + r * 0.6);
+    const ty = y - h * 0.62;
+    line(c, p, tx - r * 0.75, ty - r * 0.05, tx - r * 0.25, ty + r * 0.6, 0.95, SIL, clamp(k * 3));
+    line(c, p, tx - r * 0.25, ty + r * 0.6, tx + r * 0.85, ty - r * 0.85, 0.95, SIL, clamp(k * 1.5 - 0.5));
+  }
+}
+
+/** How far a thing kept from the last picture has travelled to its new place, 0 to 1. It waits a moment while the old picture clears. */
+function carried(f: Frame) {
+  "worklet";
+  if (f.still || f.age === undefined) return 1;
+  return ease2((f.age - 0.2) / 1.0);
+}
+
+/** Draws a thing that was in the last picture: it moves from where it stood to where it now belongs, changing pose on the way and turning if it must. */
+function drawCarried(c: SkCanvas, p: SkPaint, cr: Carry, thing: string, u: number, x: number, y: number, h: number, a: number, lit: boolean, glow: boolean, fx: number) {
+  "worklet";
+  const dx = x - cr.x;
+  const far = Math.abs(dx) > 12 && u < 1;
+  // Going any distance, a person turns the way they are going, walks, and turns back at the end.
+  const way = dx < 0 ? -1 : 1;
+  let turn = cr.fx + (fx - cr.fx) * u;
+  if (far && isPerson(thing)) turn = u < 0.15 ? cr.fx + (way - cr.fx) * (u / 0.15) : u > 0.85 ? way + (fx - way) * ((u - 0.85) / 0.15) : way;
+  const steps = Math.max(2, Math.round(Math.abs(dx) / 20));
+  const stride = far ? Math.sin(u * Math.PI * steps) * Math.min(1, 6 * u * (1 - u)) : 0;
+  const bob = far ? -Math.abs(stride) * 0.03 * h : 0;
+  drawThingTween(c, p, cr.thing, thing, u, cr.x + dx * u, cr.y + (y - cr.y) * u + bob, cr.h + (h - cr.h) * u, a, lit && u > 0.6, W0, glow, Math.abs(turn) < 0.2 ? (turn < 0 ? -0.2 : 0.2) : turn, stride);
+}
+
 // ---- units: how many out of 100 ----
 // A ten by ten field of dots; the lit ones are counted in from the top left.
 // They are lit as a group, so they carry no halo.
@@ -2328,7 +2469,9 @@ function drawParts(c: SkCanvas, p: SkPaint, font: SkFont | null, s: ThingsScene,
   const n = parts.length;
   const litI = stepping ? Math.min(n - 1, Math.floor(f.v * n)) : s.lit;
   const kL = stepping ? 1 : beat(f, 2.6, 3);
-  drawThing(c, p, s.items[0].thing, CX, CY, H, 1, false, beat(f, 0.2, 3));
+  const cr0 = f.carry ? f.carry[0] : null;
+  if (cr0) drawCarried(c, p, cr0, s.items[0].thing, carried(f), CX, CY, H, 1, false, false, 1);
+  else drawThing(c, p, s.items[0].thing, CX, CY, H, 1, false, beat(f, 0.2, 3));
   // Left or right by where the part is; middle ones go to the emptier side.
   const side: number[] = [];
   let nl = 0;
@@ -2475,8 +2618,10 @@ function drawThings(c: SkCanvas, p: SkPaint, font: SkFont | null, s: ThingsScene
       // Too small to draw at this scale: a dot where it stands, so the scale stays honest.
       if (tiny) dot(c, p, cx, BASE - 2.4, 2.4, k, isLit(i) ? BLUE : SIL);
       else {
+        const cr = f.carry ? f.carry[i] : null;
         toneWash(c, cx, BASE - hs[i] * 1.05, hs[i] * 1.05, s.items[i].tone, k);
-        drawThing(c, p, s.items[i].thing, cx, BASE - hs[i] * 1.05, hs[i], 1, isLit(i), k, W0, !s.items[i].tone);
+        if (cr) drawCarried(c, p, cr, s.items[i].thing, carried(f), cx, BASE - hs[i] * 1.05, hs[i], 1, isLit(i), !s.items[i].tone, 1);
+        else drawThing(c, p, s.items[i].thing, cx, BASE - hs[i] * 1.05, hs[i], 1, isLit(i), k, W0, !s.items[i].tone);
       }
       const name = fitText(font, s.items[i].label, 100);
       const lw = textW(font, name);
@@ -2493,15 +2638,23 @@ function drawThings(c: SkCanvas, p: SkPaint, font: SkFont | null, s: ThingsScene
   const pitch = Math.min(120, 260 / n);
   const H = n === 1 ? 52 : s.layout === "versus" ? 36 : s.layout === "chain" ? Math.min(28, pitch / 2 - 18) : Math.min(32, pitch / 2 - 10);
   const Y = n === 1 ? 78 : 76;
+  const sp = thingsSpots(s);
   const xs: number[] = [];
-  if (s.layout === "versus") xs.push(80, 220);
-  else for (let i = 0; i < n; i++) xs.push(n === 1 ? 150 : 150 + (i - (n - 1) / 2) * pitch);
+  for (let i = 0; i < n; i++) xs.push(sp[i * 4]);
   if (s.layout === "versus") line(c, p, 150, 30, 150, 140, 0.3, SIL, beat(f, 1, 3), [3, 6]);
+  const kM = beat(f, 3, 3);
+  const uC = carried(f);
   for (let i = 0; i < n; i++) {
     const k = kOf(i);
+    const cr = f.carry ? f.carry[i] : null;
+    // Crossed out: the thing steps back as the cross lands.
+    const dim = s.items[i].mark === "cross" ? 1 - 0.45 * kM : 1;
     // A washed thing keeps its blue lines when lit, but the wash stands in for the halo.
     toneWash(c, xs[i], Y, H * 1.05, s.items[i].tone, k);
-    drawThing(c, p, s.items[i].thing, xs[i], Y, H, 1, isLit(i), k, W0, !s.items[i].tone);
+    // Kept from the last picture: it moves here; it is not drawn again.
+    if (cr) drawCarried(c, p, cr, s.items[i].thing, uC, xs[i], Y, H, dim, isLit(i), !s.items[i].tone, 1);
+    else drawThing(c, p, s.items[i].thing, xs[i], Y, H, dim, isLit(i), k, W0, !s.items[i].tone);
+    gesture(c, p, s.items[i].mark, xs[i], Y, H, kM);
     label2(c, p, font, s.items[i].label, xs[i], Y + H + 18, n === 1 ? "center" : alignAt(xs[i]), isLit(i) ? SIL : LAB, k, n === 1 ? 260 : s.layout === "versus" ? 124 : pitch - 8);
     if (s.layout === "chain" && i < n - 1) {
       const x1 = xs[i] + H + 8;
@@ -3296,39 +3449,43 @@ function drawStage(c: SkCanvas, p: SkPaint, font: SkFont | null, s: StageScene, 
   const litI = stepping ? Math.min(n - 1, Math.floor(f.v * n)) : s.lit;
   const kL = stepping ? 1 : beat(f, 2.6, 3);
   const pitch = Math.min(120, 268 / slots);
-  const x0 = 150 - (pitch * slots) / 2;
+  const sp = stageSpots(s);
   const xs: number[] = [];
   const hs: number[] = [];
   const tops: number[] = [];
-  for (let i = 0; i < slots; i++) xs.push(x0 + pitch * (i + 0.5));
-  for (let i = 0; i < n; i++) hs.push(Math.min(s.actors[i].size === "big" ? 37 : s.actors[i].size === "small" ? 20 : 30, pitch / 2 - 6));
-  const PH = Math.min(40, pitch / 2 - 4);
-  if (s.place) hs.push(PH);
+  for (let i = 0; i < slots; i++) {
+    xs.push(sp[i * 4]);
+    hs.push(sp[i * 4 + 2]);
+  }
+  const PH = s.place ? hs[n] : 0;
+  const uC = carried(f);
+  // Once the acts are done, an actor may change pose where they stand, and a cross or a tick may land.
+  const kT = beat(f, 3, 3);
   // Each thing stands on the ground; its top is wherever its own marks reach.
   for (let i = 0; i < slots; i++) tops.push(GY - hs[i] * 0.95 + thingTop(i < n ? s.actors[i].thing : s.place) * hs[i]);
   line(c, p, 14, GY, 286, GY, 0.35, SIL, beat(f, 0, 3));
   if (s.place) {
     const k = beat(f, 0.3, 3);
+    const crP = f.carry ? f.carry[n] : null;
     toneWash(c, xs[n], GY - PH * 0.95, PH * 1.05, s.placeTone, k);
-    drawThing(c, p, s.place, xs[n], GY - PH * 0.95, PH, 0.62, false, k);
+    if (crP) drawCarried(c, p, crP, s.place, uC, xs[n], GY - PH * 0.95, PH, 0.62, false, false, 1);
+    else drawThing(c, p, s.place, xs[n], GY - PH * 0.95, PH, 0.62, false, k);
     label2(c, p, font, s.placeLabel, xs[n], GY + 12, alignAt(xs[n]), LAB, k, pitch - 8);
-  }
-  // People turn to face whoever they act on, or who acts on them; with nothing between them they face the middle.
-  const turn: number[] = [];
-  for (let i = 0; i < n; i++) turn.push(n > 1 && i > (n - 1) / 2 ? -1 : 1);
-  for (let j = s.acts.length - 1; j >= 0; j--) {
-    const act = s.acts[j];
-    if (act.kind === "says" || act.kind === "thinks" || act.from >= n) continue;
-    const to = act.to < 0 ? n : act.to;
-    if (to === act.from || to >= slots) continue;
-    if (to < n) turn[to] = xs[act.from] < xs[to] ? -1 : 1;
-    turn[act.from] = xs[to] < xs[act.from] ? -1 : 1;
   }
   for (let i = 0; i < n; i++) {
     const k = beat(f, 0.5 + (i / Math.max(1, n)) * 1.3, 3);
     const lit = i === litI && kL > 0.5;
-    toneWash(c, xs[i], GY - hs[i] * 0.95, hs[i] * 1.05, s.actors[i].tone, k);
-    drawThing(c, p, s.actors[i].thing, xs[i], GY - hs[i] * 0.95, hs[i], 1, lit, k, W0, !s.actors[i].tone, isPerson(s.actors[i].thing) ? turn[i] : 1);
+    const act = s.actors[i];
+    const cr = f.carry ? f.carry[i] : null;
+    const y = GY - hs[i] * 0.95;
+    const fx = sp[i * 4 + 3];
+    const dim = act.mark === "cross" ? 1 - 0.45 * kT : 1;
+    toneWash(c, xs[i], y, hs[i] * 1.05, act.tone, k);
+    // Kept from the last picture: they walk to their new place. It is the same person, so they are not drawn again.
+    if (cr && uC < 1) drawCarried(c, p, cr, act.thing, uC, xs[i], y, hs[i], dim, lit, !act.tone, fx);
+    else if (act.then && (cr || k >= 1)) drawThingTween(c, p, act.thing, act.then, kT, xs[i], y, hs[i], dim, lit, W0, !act.tone, fx);
+    else drawThing(c, p, act.thing, xs[i], y, hs[i], dim, lit, cr ? 1 : k, W0, !act.tone, fx);
+    gesture(c, p, act.mark, xs[i], y, hs[i], kT, fx);
     label2(c, p, font, s.actors[i].label, xs[i], GY + 12, alignAt(xs[i]), lit ? SIL : LAB, k, pitch - 8);
   }
   // Which way each actor's arrow leaves or arrives, and who has a bubble: a bubble keeps to the other side.
