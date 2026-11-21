@@ -217,7 +217,11 @@ export function TeachMode({
         for (let k = 0; k < lines.length; k++) {
           const last = k === lines.length - 1;
           if (last && b.guess && b.scene) {
-            // Guess first, then see it.
+            // Guess first, then see it. The whole drawing is up while they
+            // guess (nothing moves yet, so the answer is not given away).
+            // Before, a short film asked over a half drawn or empty panel.
+            cancelAnimation(build);
+            build.value = withTiming(1, { duration: reduce ? 0 : 500, easing: ease });
             setAsking(b.guess);
             await sayLine({ say: b.guess.ask, cue: "" }, null, false);
             if (!alive) return;
@@ -337,6 +341,7 @@ export function TeachMode({
                   moving={filmBite % 2 === 0 ? movingA : movingB}
                   label={filmNow.caption || filmNow.title}
                   caption={biteDone ? filmNow.caption : undefined}
+                  fallback={<Picture kind={filmNow.picture.kind} labels={filmNow.picture.labels} />}
                 />
               ) : (
                 <Picture kind={filmNow.picture.kind} labels={filmNow.picture.labels} />
@@ -388,7 +393,7 @@ export function TeachMode({
             </T>
             <Animated.View entering={riseIn(STAGGER_MS * 3)} style={{ marginTop: 8 }}>
               {lesson.bites[step.i].scene ? (
-                <SceneView scene={lesson.bites[step.i].scene!} label={lesson.bites[step.i].caption || lesson.bites[step.i].title} caption={lesson.bites[step.i].caption} />
+                <SceneView scene={lesson.bites[step.i].scene!} label={lesson.bites[step.i].caption || lesson.bites[step.i].title} caption={lesson.bites[step.i].caption} fallback={<Picture kind={lesson.bites[step.i].picture.kind} labels={lesson.bites[step.i].picture.labels} />} />
               ) : (
                 <Picture kind={lesson.bites[step.i].picture.kind} labels={lesson.bites[step.i].picture.labels} />
               )}
@@ -409,7 +414,7 @@ export function TeachMode({
             <T size={28} weight="medium" style={{ lineHeight: 33 }}>
               {lesson.bites[step.i].play!.prompt}
             </T>
-            <SceneView scene={lesson.bites[step.i].scene!} changes={lesson.bites[step.i].play!.changes} value={slider} label={lesson.bites[step.i].play!.prompt} caption={lesson.bites[step.i].caption} />
+            <SceneView scene={lesson.bites[step.i].scene!} changes={lesson.bites[step.i].play!.changes} value={slider} label={lesson.bites[step.i].play!.prompt} caption={lesson.bites[step.i].caption} fallback={<Picture kind={lesson.bites[step.i].picture.kind} labels={lesson.bites[step.i].picture.labels} />} />
             <Slider
               value={slider}
               low={lesson.bites[step.i].play!.low}
