@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { checkLesson, handleLesson, keyWords, offTopic, oneDevice, quoteInNotes } from "../src/lesson";
+import { buildLesson, checkLesson, handleLesson, keyWords, offTopic, oneDevice, quoteInNotes } from "../src/lesson";
+import { catalogueKey, normalise, type LessonStore } from "../src/lessonStore";
 
 const NOTES = "The cell membrane is a phospholipid bilayer. It is selectively permeable, so small non-polar molecules pass through freely while ions need channel proteins.";
 
@@ -254,5 +255,108 @@ describe("staying on the topic", () => {
     expect(j.cost.lines).toHaveLength(2);
     expect(sent[1]).toContain("drifted off the topic");
     expect(j.lesson.bites[0].comparison).toBe("");
+  });
+});
+
+describe("lesson catalogue", () => {
+  type Row = Parameters<LessonStore["save"]>[0] & { id: number; retired?: string; served: number };
+  function fakeStore() {
+    const rows: Row[] = [];
+    const store: LessonStore = {
+      async find(key) {
+        const r = [...rows].reverse().find((x) => x.key === key && x.shared && !x.retired);
+        return r ? { id: r.id, model: r.model, lesson: r.lesson } : null;
+      },
+      async save(row) {
+        rows.push({ ...row, id: rows.length + 1, served: 0 });
+      },
+      async served(id) {
+        rows[id - 1].served++;
+      },
+      async retire(id, reason) {
+        rows[id - 1].retired = reason;
+      },
+    };
+    return { rows, store };
+  }
+  const topicDraft = () => {
+    const d = draft();
+    d.bites.forEach((b) => (b.quote = ""));
+    return d;
+  };
+  let calls = 0;
+  const counting = (replies: object[]) => {
+    const f = openAIFetch(replies);
+    return (async (...a: Parameters<typeof fetch>) => {
+      calls++;
+      return f(...a);
+    }) as typeof fetch;
+  };
+
+  it("matches topics regardless of case and punctuation", () => {
+    expect(normalise("  Cell Membranes! ")).toBe("cell membranes");
+    expect(catalogueKey("Cell membranes", "Selective, permeability", "simple")).toBe(catalogueKey("cell MEMBRANES", "selective permeability", "simple"));
+    expect(catalogueKey("Cell membranes", "x", "simple")).not.toBe(catalogueKey("Cell membranes", "x", "deep"));
+  });
+
+  it("saves a general lesson as shared and reuses it for the next learner at no cost", async () => {
+    const { rows, store } = fakeStore();
+    calls = 0;
+    const body = { topic: "Cell membranes", idea: "catalogue reuse idea", level: "simple" };
+    const first = await buildLesson({ OPENAI_API_KEY: "k" }, body as never, counting([topicDraft()]), store);
+    expect(first.cached).toBe(false);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].shared).toBe(true);
+    expect(rows[0].notesHash).toBeNull();
+    // A different server instance (empty memory) with the Claude brain still finds it.
+    const res = await handleLesson(post({ ...body, topic: "CELL MEMBRANES" }), { ANTHROPIC_API_KEY: "k", OPENAI_API_KEY: "k" }, counting([topicDraft()]), store);
+    const j = await res.json();
+    expect(j.cached).toBe(true);
+    expect(j.cost.usd).toBe(0);
+    expect(calls).toBe(1);
+    expect(rows[0].served).toBe(1);
+  });
+
+  it("keeps a lesson from someone's notes private and never stores the notes", async () => {
+    const { rows, store } = fakeStore();
+    await buildLesson({ OPENAI_API_KEY: "k" }, { ...req, idea: "private notes idea" }, openAIFetch([draft()]), store);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].shared).toBe(false);
+    expect(rows[0].notesHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(JSON.stringify(rows[0])).not.toContain("phospholipid bilayer");
+    expect(await store.find(catalogueKey(req.topic, "private notes idea", "standard"), 60)).toBeNull();
+  });
+
+  it("keeps a lesson shaped by what the learner said private", async () => {
+    const { rows, store } = fakeStore();
+    await buildLesson({ OPENAI_API_KEY: "k" }, { topic: "Cell membranes", idea: "said idea", said: "it is like a wall" }, openAIFetch([topicDraft()]), store);
+    expect(rows[0].shared).toBe(false);
+  });
+
+  it("retires a saved lesson that fails today's on-topic check and writes a fresh one", async () => {
+    const { rows, store } = fakeStore();
+    const body = { topic: "Control panels", idea: "retire idea" };
+    const lift = checkLesson(topicDraft() as never, body);
+    await store.save({ key: catalogueKey(body.topic, body.idea, "standard"), shared: true, topic: body.topic, idea: body.idea, level: "standard", notesHash: null, model: "old", lesson: lift, cost: [], problems: [] });
+    const r = await buildLesson({ OPENAI_API_KEY: "k" }, body, openAIFetch([topicDraft()]), store);
+    expect(r.cached).toBe(false);
+    expect(rows[0].retired).toMatch(/never names Control panels/);
+    expect(rows[1].problems.length).toBeGreaterThan(0);
+    expect(rows[1].shared).toBe(false);
+  });
+
+  it("still writes the lesson when the catalogue is down", async () => {
+    const broken: LessonStore = {
+      find: async () => {
+        throw new Error("db down");
+      },
+      save: async () => {
+        throw new Error("db down");
+      },
+      served: async () => {},
+      retire: async () => {},
+    };
+    const r = await buildLesson({ OPENAI_API_KEY: "k" }, { topic: "Cell membranes", idea: "db down idea" }, openAIFetch([topicDraft()]), broken);
+    expect(r.lesson.bites).toHaveLength(2);
   });
 });
