@@ -11,13 +11,16 @@
 //
 // Built on Claude (LESSON_BRAIN=claude, the default once ANTHROPIC_API_KEY is
 // set) with OpenAI as the fallback brain. Lessons are cached in memory per
-// topic, idea and notes, so a second learner tap costs nothing.
+// topic, idea and notes, so a second learner tap costs nothing. Every lesson
+// is also saved to the catalogue in Neon (lessonStore.ts): general topic
+// lessons are reused for everyone, lessons from someone's notes stay private.
 import { createHash } from "node:crypto";
 import Anthropic from "@anthropic-ai/sdk";
 import { chatJSON } from "./engine/chat";
 import { CLAUDE_PRICES, openAIPricesFromEnv, type CostLine } from "./pricing";
 import { checkFilm, checkGuess, FILM_PROMPT, FILM_SCHEMA, GUESS_SCHEMA, type FilmBeat, type Guess } from "./film";
 import { checkPlay, checkScene, FAMILIES, PLAY_SCHEMA, SCENE_PROMPT, SCENE_SCHEMA, type Play, type Scene } from "./scene";
+import { catalogueDays, catalogueKey, notesHash, storeFromEnv, within, type LessonStore } from "./lessonStore";
 
 type Env = Record<string, string | undefined>;
 
@@ -419,28 +422,88 @@ export function lessonBrain(env: Env): "claude" | "openai" {
 
 const cache = new Map<string, LessonResult>();
 
+/** How long a catalogue read or write may take before the lesson goes ahead without it. */
+const CATALOGUE_MS = 2000;
+
+/** A saved lesson still fit to serve: the right shape, and on topic by today's check. Returns the problems, or [] when fine. */
+export function savedLessonProblems(lesson: unknown, req: LessonRequest): string[] {
+  const l = lesson as Lesson | null;
+  if (!l || !Array.isArray(l.bites) || !l.bites.length || !l.bites.every((b) => b && b.puzzle && Array.isArray(b.puzzle.options))) return ["Saved lesson has the wrong shape."];
+  return offTopic(l, req);
+}
+
 /**
  * Builds a checked lesson. If the first try comes back broken, or with most
  * quotes missing from the notes, it asks once more with the problem named.
  */
-export async function buildLesson(env: Env, req: LessonRequest, fetchImpl?: typeof fetch): Promise<LessonResult & { cached: boolean }> {
+export async function buildLesson(
+  env: Env,
+  req: LessonRequest,
+  fetchImpl?: typeof fetch,
+  store: LessonStore | null = storeFromEnv(env),
+): Promise<LessonResult & { cached: boolean }> {
   const brain = lessonBrain(env);
+  const level = req.level ?? "standard";
   const key = createHash("sha256")
-    .update([brain, req.level ?? "standard", req.topic.trim().toLowerCase(), req.idea.trim().toLowerCase(), req.notes?.trim() ?? ""].join("\0"))
+    .update([brain, level, req.topic.trim().toLowerCase(), req.idea.trim().toLowerCase(), req.notes?.trim() ?? ""].join("\0"))
     .digest("hex");
   const hit = cache.get(key);
   if (hit) return { ...hit, cached: true };
 
+  // General lessons (no notes, nothing the learner said) come from the shared catalogue when one is saved.
+  const general = !req.notes?.trim() && !req.said?.trim();
+  const shareKey = catalogueKey(req.topic, req.idea, level);
+  if (store && general) {
+    const saved = await within(store.find(shareKey, catalogueDays(env)), CATALOGUE_MS, null);
+    if (saved) {
+      const problems = savedLessonProblems(saved.lesson, req);
+      if (!problems.length) {
+        const result: LessonResult = { lesson: { ...(saved.lesson as Lesson), idea: req.idea }, model: saved.model, cost: [] };
+        cache.set(key, result);
+        await within(store.served(saved.id), CATALOGUE_MS, undefined);
+        return { ...result, cached: true };
+      }
+      // Today's checks are stricter than the day it was saved: retire it and write a fresh one.
+      console.warn("lesson catalogue: retiring", JSON.stringify({ id: saved.id, topic: req.topic, problems }));
+      await within(store.retire(saved.id, `Failed check on reuse: ${problems.join(" ")}`.slice(0, 1000)), CATALOGUE_MS, undefined);
+    }
+  }
+
+  /** Saves what is about to be served. Shared only when general and on topic. */
+  const keep = async (r: { lesson: Lesson; model: string }, cost: CostLine[], problems: string[]) => {
+    if (!store) return;
+    await within(
+      store.save({
+        key: general ? shareKey : createHash("sha256").update(key).digest("hex"),
+        shared: general && !problems.length,
+        topic: req.topic.trim(),
+        idea: req.idea.trim(),
+        level,
+        notesHash: req.notes?.trim() ? notesHash(req.notes) : null,
+        model: r.model,
+        lesson: r.lesson,
+        cost,
+        problems,
+      }),
+      CATALOGUE_MS,
+      undefined,
+    );
+  };
+
   let draft = brain === "claude" ? draftClaude : draftOpenAI;
   const cost: CostLine[] = [];
   let problem: string | undefined;
-  let spare: { lesson: Lesson; model: string } | undefined;
+  let spare: { lesson: Lesson; model: string; problems: string[] } | undefined;
+  const serveSpare = async (s: NonNullable<typeof spare>) => {
+    await keep(s, cost, s.problems);
+    return { lesson: s.lesson, model: s.model, cost, cached: false };
+  };
   for (let attempt = 0; attempt < 2; attempt++) {
     let r: Awaited<ReturnType<typeof draftOpenAI>>;
     try {
       r = await draft(env, req, problem, fetchImpl);
     } catch (e) {
-      if (spare) return { ...spare, cost, cached: false };
+      if (spare) return serveSpare(spare);
       // If Claude is down or its key is refused, the learner still gets a
       // lesson: switch to OpenAI for the rest of this request.
       if (draft !== draftClaude || !env.OPENAI_API_KEY) throw e;
@@ -457,7 +520,7 @@ export async function buildLesson(env: Env, req: LessonRequest, fetchImpl?: type
         console.warn("lesson: off topic", JSON.stringify({ topic: req.topic, idea: req.idea, level: req.level ?? "standard", attempt, wandered }));
         if (attempt === 0) {
           // Kept only in case the second try breaks outright.
-          spare = { lesson, model: r.model };
+          spare = { lesson, model: r.model, problems: wandered };
           problem = `The lesson drifted off the topic. ${wandered.join(" ")}`;
           continue;
         }
@@ -471,7 +534,7 @@ export async function buildLesson(env: Env, req: LessonRequest, fetchImpl?: type
       const same = oneDevice(lesson);
       if (same && attempt === 0) {
         // The lesson is still a good one: keep it in case the second try fails.
-        spare = { lesson, model: r.model };
+        spare = { lesson, model: r.model, problems: [] };
         problem = `Every bite used the same device (${same}). Keep the best one and give the other bites a different device that fits their own point.`;
         continue;
       }
@@ -483,9 +546,10 @@ export async function buildLesson(env: Env, req: LessonRequest, fetchImpl?: type
       // Only lessons that do not depend on what this learner said are shared.
       // A lesson that is still off topic is served once but never shared.
       if (!req.said?.trim() && !wandered.length) cache.set(key, result);
+      await keep(result, cost, wandered);
       return { ...result, cached: false };
     } catch (e) {
-      if (spare) return { ...spare, cost, cached: false };
+      if (spare) return serveSpare(spare);
       if (attempt === 1) throw e;
       problem = (e as Error).message + ".";
     }
@@ -497,7 +561,7 @@ function json(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 }
 
-export async function handleLesson(req: Request, env: Env = process.env, fetchImpl?: typeof fetch): Promise<Response> {
+export async function handleLesson(req: Request, env: Env = process.env, fetchImpl?: typeof fetch, store?: LessonStore | null): Promise<Response> {
   if (req.method !== "POST") return json(405, { error: "Use POST" });
   if (env.PROTOTYPE_TOKEN && req.headers.get("authorization") !== `Bearer ${env.PROTOTYPE_TOKEN}`) return json(401, { error: "Unauthorised" });
   let body: LessonRequest;
@@ -514,7 +578,7 @@ export async function handleLesson(req: Request, env: Env = process.env, fetchIm
   if (brain === "openai" && !env.OPENAI_API_KEY) return json(500, { error: "OPENAI_API_KEY is not set on the server" });
   const t0 = Date.now();
   try {
-    const r = await buildLesson(env, body, fetchImpl);
+    const r = await buildLesson(env, body, fetchImpl, store === undefined ? storeFromEnv(env) : store);
     const usd = r.cached ? 0 : r.cost.reduce((s, c) => s + c.usd, 0);
     return json(200, { lesson: r.lesson, model: r.model, cached: r.cached, cost: { lines: r.cached ? [] : r.cost, usd }, timingMs: Date.now() - t0 });
   } catch (e) {

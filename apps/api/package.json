@@ -13,8 +13,9 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^1.6.0",
     "@feynman/kitten-tts": "*",
-    "phonemizer": "1.2.1",
-    "fflate": "^0.8.2"
+    "@neondatabase/serverless": "^1.0.0",
+    "fflate": "^0.8.2",
+    "phonemizer": "1.2.1"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",
