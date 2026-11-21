@@ -5,7 +5,7 @@
 // speaking, shown on screen.
 //
 // Request:  { topic, idea, notes?, said?, level? }   said = what the learner tried to say
-//           level = "simple" (a five year old could follow), "standard" (a bright
+//           level = "simple" (same topic, the plainest words), "standard" (a bright
 //           12 year old could follow, the default) or "deep" (university terms)
 // Response: { lesson, model, cached, cost, timingMs }
 //
@@ -58,6 +58,8 @@ export interface Bite {
   quote: string;
   /** True when quote was found in the notes. */
   fromNotes: boolean;
+  /** The everyday thing this bite compares the topic to, or "" when it uses none. At most one bite has one. */
+  comparison: string;
   puzzle: Puzzle;
   /** What Fenny says while the scene draws itself, one sentence per part. */
   film: FilmBeat[];
@@ -67,6 +69,8 @@ export interface Bite {
 
 export interface Lesson {
   idea: string;
+  /** What the topic means in this lesson, chosen before writing, e.g. "the settings window on a computer". */
+  meaning: string;
   bites: Bite[];
   /** One line that ties it together, shown on the finish screen. */
   recap: string;
@@ -80,9 +84,9 @@ export type Level = (typeof LEVELS)[number];
 /** How simply to explain, told to the writer with each lesson so the instructions stay cached. */
 export const LEVEL_TEXT: Record<Level, string> = {
   simple:
-    "Level: simplest. Write it so a five year old could follow: tiny everyday words, short sentences, one concrete everyday comparison in each bite, and no technical words at all (say what the thing does instead). Keep only the core of the idea, and keep it true. Puzzles are easy checks of that core.",
+    "Level: simplest. Same topic, same idea, plainer words. Write it so a young teenager could follow: tiny everyday words and short sentences. Keep the topic's own name and its few key words, each explained in tiny words the first time, because the student must still talk about the real thing to Fenny afterwards. Use the real thing itself as the example (a real control panel, a real cell), not a stand-in. Keep only the core of the idea, and keep it true. Puzzles are easy checks of that core, asked about the topic itself.",
   standard:
-    "Level: plain. Write it so a bright 12 year old could follow: short everyday words, an everyday comparison when it helps, and any technical word explained in plain words the first time it appears. Keep it accurate to university level: simple words, not a simpler truth.",
+    "Level: plain. Write it so a bright 12 year old could follow: short everyday words, and any technical word explained in plain words the first time it appears. Keep it accurate to university level: simple words, not a simpler truth.",
   deep:
     "Level: university. The student already gets the basic idea, so go one layer deeper: use the proper technical terms (each explained briefly), show the mechanism and why it works, and include one nuance or common misconception. Still short, plain sentences. Puzzles test the deeper detail.",
 };
@@ -98,10 +102,13 @@ export interface LessonRequest {
 
 const SYSTEM = `You write tiny lessons for Fenny, a learning app for UK university students. The student tried to explain an idea and got stuck, so before they try again they get a bite-sized lesson, like Brilliant or Duolingo, then they explain it back in their own words.
 
+First write meaning: what the topic means in this lesson, in a short phrase (for example "the settings window on a computer" or "the buttons a lift passenger presses"). Every bite, picture and puzzle keeps to that one meaning.
+
 Write 2 or 3 bites that build up to the idea. Each bite:
 - title: 2 to 5 words.
 - text: at most 45 words. Plain, warm, concrete. One thought per bite. Pitch every bite, the recap and the puzzles at the Level given with the request, the Feynman way.
 - picture: a fallback diagram, used when scene is null or cannot be drawn. Pick the simplest diagram that shows the bite, and give its labels (2 to 5, each 1 to 3 words). flow = things in sequence, labels in order. compare = two sides, labels [left, right] or [left, right, what differs]. cycle = a loop, labels in order. layers = a stack from top to bottom. parts = a whole then its parts, first label is the whole. none = no diagram helps.
+- comparison: the everyday thing this bite compares the topic to (for example "doorbell"), or "" when it uses none. Most bites use none.
 - quote: when notes are given, copy a short phrase (5 to 25 words) from the notes, word for word, that backs this bite up. With no notes, use "".
 - puzzle: one quick check of that bite, answerable in a few seconds. Use a mix of kinds across the lesson, and make the last one the hardest.
   true_false: options ["True","False"], answer is one of them.
@@ -112,6 +119,15 @@ Write 2 or 3 bites that build up to the idea. Each bite:
   why: one short sentence on why the answer is right.
 
 Then recap (one sentence that ties the bites together, just as plain) and explainBack (the question Fenny, a curious student, asks when they return, in under 15 words).
+
+Stay on the topic. This matters more than anything else:
+- Every bite teaches part of the idea about the topic itself, at every level. Simpler means plainer words about the same thing, never a different subject.
+- Use the topic's own example wherever you can. An everyday comparison is allowed in at most one bite of the whole lesson, and only when it truly helps. That bite must say plainly how it maps back, naming the topic (for example "A control panel works the same way: your press is a message, and the panel decides what happens."). The comparison never becomes a title, a drawing or a puzzle.
+- Every puzzle checks the topic's own idea. Its question and its right answer are about the topic, never about the comparison. Test: would this puzzle make sense in a quiz on the topic, for someone who never saw this lesson's comparison? If not, rewrite it.
+- Every scene draws the topic's own thing, its parts, or someone using it, never the comparison.
+- If the topic could mean more than one thing (a control panel on a computer, in a lift, in a factory), decide from the notes and what the student said. With no clues, pick the meaning a UK university student most likely means. Write it in meaning, and never switch to another meaning partway through.
+- A device that is itself a picture of something else (balance, forces, bridge, lever) must be labelled in the topic's own words, and its bite says what it stands for.
+- A drawing with only one or two labelled things says little. Prefer a device that shows the whole idea: the real thing with its named parts, a machine with what goes in and comes out, a person doing it on a stage, or three or more steps.
 
 Rules:
 - Teach only what the notes say when notes are given. Never add facts the notes do not support. With no notes, stick to standard first-year university understanding.
@@ -134,6 +150,8 @@ export const LESSON_SCHEMA = {
   properties: {
     // Chosen before the bites are written, so the writer plans three different
     // pictures instead of reaching for the same device each time.
+    // Chosen first, so every bite keeps to one meaning of the topic.
+    meaning: str,
     devices: { type: "array", items: { type: "string", enum: [...FAMILIES, "none"] } },
     bites: {
       type: "array",
@@ -153,6 +171,7 @@ export const LESSON_SCHEMA = {
           caption: str,
           film: FILM_SCHEMA,
           guess: GUESS_SCHEMA,
+          comparison: str,
           quote: str,
           puzzle: {
             type: "object",
@@ -161,14 +180,14 @@ export const LESSON_SCHEMA = {
             additionalProperties: false,
           },
         },
-        required: ["title", "text", "picture", "scene", "play", "caption", "film", "guess", "quote", "puzzle"],
+        required: ["title", "text", "picture", "scene", "play", "caption", "film", "guess", "comparison", "quote", "puzzle"],
         additionalProperties: false,
       },
     },
     recap: str,
     explainBack: str,
   },
-  required: ["devices", "bites", "recap", "explainBack"],
+  required: ["meaning", "devices", "bites", "recap", "explainBack"],
   additionalProperties: false,
 } as const;
 
@@ -196,7 +215,7 @@ function sceneOf(raw: unknown): unknown {
   }
 }
 
-type Draft = { bites: (Omit<Bite, "fromNotes" | "scene" | "play" | "caption" | "film" | "guess"> & { scene?: unknown; play?: unknown; caption?: string; film?: unknown; guess?: unknown })[]; recap: string; explainBack: string };
+type Draft = { bites: (Omit<Bite, "fromNotes" | "scene" | "play" | "caption" | "film" | "guess" | "comparison"> & { scene?: unknown; play?: unknown; caption?: string; film?: unknown; guess?: unknown; comparison?: string })[]; recap: string; explainBack: string; meaning?: string };
 
 /** Lower case, plain quotes, single spaces, no punctuation: for checking quotes against notes. */
 function flat(s: string): string {
@@ -242,6 +261,7 @@ export function checkLesson(d: Draft, req: LessonRequest): Lesson {
       scene,
       play: checkPlay(b.play, scene),
       caption: String(b.caption ?? "").trim(),
+      comparison: String(b.comparison ?? "").trim(),
       quote: req.notes?.trim() ? b.quote : "",
       fromNotes: quoteInNotes(b.quote, req.notes),
       film,
@@ -261,7 +281,54 @@ export function checkLesson(d: Draft, req: LessonRequest): Lesson {
     if (b.play && played) b.play = null;
     if (b.play) played = true;
   }
-  return { idea: req.idea, bites, recap: d.recap, explainBack: d.explainBack };
+  return { idea: req.idea, meaning: String(d.meaning ?? "").trim(), bites, recap: d.recap, explainBack: d.explainBack };
+}
+
+const STOP = new Set("a an and are as at be by for from how in into is it its of on or that the their this to what when where which who why with your you basics basic idea ideas does do works work".split(" "));
+
+/** The meaningful words of a text, lower case and roughly singular, for comparing what a lesson talks about. */
+export function keyWords(text: string): Set<string> {
+  const out = new Set<string>();
+  for (const w of flat(text).split(" ")) {
+    if (w.length < 3 || STOP.has(w)) continue;
+    out.add(/(ch|sh|x|z|ss)es$/.test(w) ? w.slice(0, -2) : w.length > 3 && /[^su]s$/.test(w) && !/is$/.test(w) ? w.slice(0, -1) : w);
+  }
+  return out;
+}
+
+/** Same word family: equal, or long words that start the same way ("recursion" and "recursive"). */
+const kin = (a: string, b: string) => a === b || (a.length >= 6 && b.length >= 6 && a.slice(0, 6) === b.slice(0, 6));
+const shares = (a: Set<string>, b: Set<string>) => [...a].some((w) => b.has(w) || [...b].some((v) => kin(w, v)));
+
+/**
+ * Catches a lesson that has wandered off its topic, the way a "simpler" lesson
+ * on control panels turned into one about a lift: comparisons in more than one
+ * bite, a comparison never tied back to the topic, a puzzle or drawing about the
+ * comparison instead of the topic, or a lesson that never names the topic.
+ * Returns the problems found, each written as an instruction to the writer.
+ */
+export function offTopic(lesson: Lesson, req: LessonRequest): string[] {
+  const problems: string[] = [];
+  const topic = keyWords(req.topic);
+  // Words the topic itself owns: a comparison word found here is fair game (a lift lesson may say "lift").
+  const own = keyWords([req.topic, req.idea, req.notes ?? "", req.said ?? ""].join(" "));
+  const compared = lesson.bites.filter((b) => b.comparison);
+  if (compared.length > 1) problems.push(`${compared.length} bites use an everyday comparison (${compared.map((b) => b.comparison).join(", ")}). Use at most one in the whole lesson, and teach the other bites with ${req.topic} itself.`);
+  lesson.bites.forEach((b, i) => {
+    const n = i + 1;
+    if (!b.comparison) return;
+    const away = new Set([...keyWords(b.comparison)].filter((w) => ![...own].some((o) => kin(w, o))));
+    if (!away.size) return;
+    if (topic.size && !shares(keyWords(b.text), topic)) problems.push(`Bite ${n} compares it to ${b.comparison} but never ties that back to ${req.topic}. Say plainly how ${req.topic} works the same way.`);
+    const p = b.puzzle;
+    const asked = keyWords([p.prompt, ...p.answer, ...(p.kind === "match" || p.kind === "order" ? p.options : [])].join(" "));
+    if (shares(asked, away)) problems.push(`Bite ${n}'s puzzle tests the comparison (${b.comparison}) instead of ${req.topic}. Ask about ${req.topic} itself.`);
+    if (b.scene && b.scene.family !== "bridge" && b.scene.family !== "pair" && shares(keyWords(JSON.stringify(b.scene)), away)) problems.push(`Bite ${n}'s drawing shows the comparison (${b.comparison}). Draw ${req.topic} itself.`);
+    if (shares(keyWords(b.title), away)) problems.push(`Bite ${n}'s title is about the comparison (${b.comparison}). Title it with ${req.topic}'s own idea.`);
+  });
+  const said = keyWords(lesson.bites.map((b) => `${b.title} ${b.text} ${b.puzzle.prompt}`).join(" ") + " " + lesson.recap);
+  if (topic.size && !shares(said, topic)) problems.push(`The lesson never names ${req.topic}. Teach ${req.topic} itself, by name.`);
+  return problems;
 }
 
 /** The one device every bite used, when a lesson of two or more bites drew them all the same way. Otherwise "". */
@@ -384,6 +451,17 @@ export async function buildLesson(env: Env, req: LessonRequest, fetchImpl?: type
     cost.push(r.cost);
     try {
       const lesson = checkLesson(r.draft, req);
+      // Off topic matters most: a lesson about the wrong thing teaches nothing.
+      const wandered = offTopic(lesson, req);
+      if (wandered.length) {
+        console.warn("lesson: off topic", JSON.stringify({ topic: req.topic, idea: req.idea, level: req.level ?? "standard", attempt, wandered }));
+        if (attempt === 0) {
+          // Kept only in case the second try breaks outright.
+          spare = { lesson, model: r.model };
+          problem = `The lesson drifted off the topic. ${wandered.join(" ")}`;
+          continue;
+        }
+      }
       const missing = lesson.bites.filter((b) => !b.fromNotes).length;
       if (req.notes?.trim() && missing > lesson.bites.length / 2 && attempt === 0) {
         problem = "Most quotes were not copied word for word from the notes.";
@@ -403,7 +481,8 @@ export async function buildLesson(env: Env, req: LessonRequest, fetchImpl?: type
       });
       const result = { lesson, model: r.model, cost };
       // Only lessons that do not depend on what this learner said are shared.
-      if (!req.said?.trim()) cache.set(key, result);
+      // A lesson that is still off topic is served once but never shared.
+      if (!req.said?.trim() && !wandered.length) cache.set(key, result);
       return { ...result, cached: false };
     } catch (e) {
       if (spare) return { ...spare, cost, cached: false };

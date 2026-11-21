@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkLesson, handleLesson, oneDevice, quoteInNotes } from "../src/lesson";
+import { checkLesson, handleLesson, keyWords, offTopic, oneDevice, quoteInNotes } from "../src/lesson";
 
 const NOTES = "The cell membrane is a phospholipid bilayer. It is selectively permeable, so small non-polar molecules pass through freely while ions need channel proteins.";
 
@@ -133,7 +133,7 @@ describe("POST /api/lesson", () => {
     }) as unknown as typeof fetch;
     for (const level of ["simple", "deep", undefined]) await handleLesson(post({ ...req, idea: "level idea", level }), { OPENAI_API_KEY: "k" }, f);
     expect(sent).toHaveLength(3);
-    expect(sent[0]).toContain("five year old");
+    expect(sent[0]).toContain("Level: simplest. Same topic, same idea, plainer words.");
     expect(sent[1]).toContain("Level: university");
     expect(sent[2]).toContain("12 year old");
     expect((await handleLesson(post({ ...req, level: "toddler" }), { OPENAI_API_KEY: "k" })).status).toBe(400);
@@ -174,5 +174,85 @@ describe("variety of drawings", () => {
     expect(res.status).toBe(200);
     const j = await res.json();
     expect(j.lesson.bites[0].scene.family).toBe("pair");
+  });
+});
+
+describe("staying on the topic", () => {
+  // What Edem saw: a "simpler" lesson on control panels that became a lesson about a lift.
+  const panel = { topic: "Control panels", idea: "How a control panel turns a button press into an action" };
+  const bite = (over: Record<string, unknown>) => ({
+    title: "Your press is a message",
+    text: "When you press a button on a control panel, the panel reads it as a message and decides what happens.",
+    picture: { kind: "flow", labels: ["Press", "Panel", "Action"] },
+    quote: "",
+    comparison: "",
+    puzzle: { kind: "choose", prompt: "What does the control panel do with your press?", options: ["Decides what happens", "Ignores it", "Stores it forever"], answer: ["Decides what happens"], why: "The panel reads the press and picks the action." },
+    ...over,
+  });
+  const lessonOf = (...bites: Record<string, unknown>[]) => checkLesson({ bites, recap: "A control panel turns a press into an action.", explainBack: "So what does a control panel do?" } as never, panel);
+
+  it("passes a lesson about the topic itself", () => {
+    expect(offTopic(lessonOf(bite({}), bite({ title: "The panel decides" })), panel)).toEqual([]);
+  });
+
+  it("catches a puzzle that tests the comparison instead of the topic", () => {
+    const lift = bite({
+      title: "Your push becomes a job",
+      comparison: "lift",
+      text: "Think of a lift. You press a button and the lift moves.",
+      puzzle: { kind: "choose", prompt: "What happens after you press?", options: ["Lift moves", "Nothing", "The doors fall off"], answer: ["Lift moves"], why: "Your press becomes a job." },
+    });
+    const problems = offTopic(lessonOf(bite({}), lift), panel);
+    expect(problems.join(" ")).toMatch(/Bite 2's puzzle tests the comparison \(lift\)/);
+    expect(problems.join(" ")).toMatch(/never ties that back to Control panels/);
+  });
+
+  it("allows one comparison that is tied back and kept out of the puzzle", () => {
+    const tied = bite({ comparison: "doorbell", text: "A doorbell press is a message. A control panel works the same way: your press tells the panel what you want." });
+    expect(offTopic(lessonOf(tied, bite({})), panel)).toEqual([]);
+  });
+
+  it("catches a comparison in every bite, and a comparison drawn instead of the topic", () => {
+    const a = bite({ comparison: "doorbell", text: "A control panel is like a doorbell." });
+    const b = bite({ comparison: "teacher", text: "The control panel is like a teacher.", scene: { family: "things", layout: "chain", items: [{ thing: "teacher", label: "Teacher", size: 1, tone: "", mark: "" }, { thing: "hand", label: "Hand", size: 1, tone: "", mark: "" }], parts: [], lit: 0 } });
+    const problems = offTopic(lessonOf(a, b), panel).join(" ");
+    expect(problems).toMatch(/2 bites use an everyday comparison \(doorbell, teacher\)/);
+  });
+
+  it("does not count a word the topic owns as a comparison", () => {
+    const lifts = { topic: "Lift control systems", idea: "How a lift decides which floor to go to" };
+    const l = checkLesson({ bites: [bite({ comparison: "lift", text: "A lift control system reads each press.", puzzle: { kind: "true_false", prompt: "The lift goes to every floor in the order pressed.", options: ["True", "False"], answer: ["False"], why: "It groups calls." } })], recap: "Lift control systems group calls.", explainBack: "How does a lift choose?" } as never, lifts);
+    expect(offTopic(l, lifts)).toEqual([]);
+  });
+
+  it("catches a lesson that never names the topic", () => {
+    const l = checkLesson({ bites: [bite({ title: "Doors", text: "Doors open and shut.", puzzle: { kind: "true_false", prompt: "Doors open.", options: ["True", "False"], answer: ["True"], why: "They do." } })], recap: "Doors open.", explainBack: "What do doors do?" } as never, panel);
+    expect(offTopic(l, panel).join(" ")).toMatch(/never names Control panels/);
+  });
+
+  it("counts words of the same family as naming the topic", () => {
+    const rec = { topic: "Recursion", idea: "Why a recursive function needs a base case" };
+    const l = checkLesson({ bites: [bite({ title: "Calls itself", text: "A recursive function calls itself on a smaller problem.", puzzle: { kind: "true_false", prompt: "A recursive function needs a base case.", options: ["True", "False"], answer: ["True"], why: "Or it never stops." } })], recap: "Each call gets smaller until the base case.", explainBack: "Why does it need a base case?" } as never, rec);
+    expect(offTopic(l, rec)).toEqual([]);
+  });
+
+  it("reads plurals as the same word", () => {
+    expect([...keyWords("Control panels, membranes and the basics of switches in osmosis")]).toEqual(["control", "panel", "membrane", "switch", "osmosis"]);
+  });
+
+  it("asks again when the lesson drifts, and serves the fixed one", async () => {
+    const drifted = { bites: [bite({ comparison: "lift", text: "A lift moves when pressed.", puzzle: { kind: "true_false", prompt: "The lift moves when you press.", options: ["True", "False"], answer: ["True"], why: "It does." } })], recap: "Like a lift.", explainBack: "What does a control panel do?" };
+    const fixed = { bites: [bite({})], recap: "A control panel turns a press into an action.", explainBack: "What does a control panel do?" };
+    const sent: string[] = [];
+    const replies = [drifted, fixed];
+    const f = (async (_u: unknown, init?: RequestInit) => {
+      sent.push(String(init?.body));
+      return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(replies.shift()) } }], usage: { prompt_tokens: 10, completion_tokens: 5 } }));
+    }) as unknown as typeof fetch;
+    const res = await handleLesson(post({ ...panel, level: "simple" }), { OPENAI_API_KEY: "k" }, f);
+    const j = await res.json();
+    expect(j.cost.lines).toHaveLength(2);
+    expect(sent[1]).toContain("drifted off the topic");
+    expect(j.lesson.bites[0].comparison).toBe("");
   });
 });
