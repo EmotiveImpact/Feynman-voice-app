@@ -21,7 +21,7 @@ await build({
   format: "esm",
   outfile: `${fn}/index.mjs`,
   // Some dependencies use require(); give ESM output a working one.
-  banner: { js: "import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);" },
+  banner: { js: "import { createRequire as __bannerCreateRequire } from 'node:module'; const require = __bannerCreateRequire(import.meta.url);" },
 });
 
 const config = { runtime: "nodejs22.x", handler: "index.mjs", launcherType: "Nodejs", maxDuration: 30 };
