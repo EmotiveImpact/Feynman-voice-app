@@ -33,7 +33,22 @@ export default function NewTopic() {
   const [goal, setGoal] = useState("");
   const recent = profile.topics.slice(0, 4);
   const [scan, setScan] = useState<ScanState | null>(null);
-  const pages = scan?.stage === "ready" ? scan.pages : scan?.stage === "error" ? (scan.keep?.pages ?? []) : [];
+  const scanned = scan?.stage === "ready" ? scan.pages : scan?.stage === "error" ? (scan.keep?.pages ?? []) : [];
+  // Notes pasted from anywhere (an email, a doc, a web page), kept as one more page.
+  const [pasting, setPasting] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [pasted, setPasted] = useState("");
+  const pages = pasted ? [...scanned, pasted] : scanned;
+  const usePasted = () => {
+    const text = draft.trim();
+    if (!text) return;
+    setPasted(text);
+    setPasting(false);
+    // Suggest a name from the first line, unless they've typed one.
+    const first = text.split("\n").map((l) => l.replace(/^[#*\-\s]+/, "").trim()).find(Boolean) ?? "";
+    if (!topic.trim() && first.length > 2 && first.length <= 60) setTopic(first);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+  };
 
   /** Scan pages (adding to any already read), then read each one on the server. */
   const scanNotes = async () => {
@@ -198,6 +213,78 @@ export default function NewTopic() {
                 </View>
               </Press>
             )}
+            {!pasted && !pasting && (
+              <Press onPress={() => setPasting(true)} accessibilityRole="button" accessibilityLabel="Paste your notes">
+                <View style={styles.scanRow}>
+                  <View style={styles.scanIcon}>
+                    <Icon name="paste" size={20} color="#C9CDD4" />
+                  </View>
+                  <View style={{ flex: 1, gap: 1 }}>
+                    <T size={15.5} weight="medium">
+                      Paste your notes
+                    </T>
+                    <T size={13} tone="muted">
+                      From an email, a document or a web page
+                    </T>
+                  </View>
+                  <Icon name="chevron" size={18} color={colour.muted} />
+                </View>
+              </Press>
+            )}
+            {pasting && (
+              <Animated.View entering={FadeIn}>
+                <TextInput
+                  value={draft}
+                  onChangeText={setDraft}
+                  placeholder="Paste or type your notes here"
+                  placeholderTextColor={colour.textDim}
+                  multiline
+                  autoFocus
+                  textAlignVertical="top"
+                  style={styles.pasteBox}
+                  accessibilityLabel="Your notes"
+                />
+                <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
+                  <PillButton label="Cancel" onPress={() => setPasting(false)} style={{ flex: 1, height: 46 }} />
+                  <PillButton label="Use these notes" variant="solid" onPress={usePasted} style={{ flex: 1, height: 46, opacity: draft.trim() ? 1 : 0.5 }} />
+                </View>
+              </Animated.View>
+            )}
+            {!!pasted && (
+              <View style={[styles.scanRow, { alignItems: "flex-start" }]}>
+                <View style={styles.scanIcon}>
+                  <Icon name="check" size={18} color="#C9CDD4" />
+                </View>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <T size={15} weight="medium">
+                    Pasted notes · {words(pasted)} words
+                  </T>
+                  <T size={12.5} tone="dim" lines={2}>
+                    {pasted.replace(/[#*>-]+/g, " ").replace(/\s+/g, " ").trim()}
+                  </T>
+                  <View style={{ flexDirection: "row", gap: 18, marginTop: 6 }}>
+                    <Pressable
+                      onPress={() => {
+                        setDraft(pasted);
+                        setPasted("");
+                        setPasting(true);
+                      }}
+                      accessibilityRole="button"
+                      hitSlop={8}
+                    >
+                      <T size={13} tone="soft" weight="semibold">
+                        Edit
+                      </T>
+                    </Pressable>
+                    <Pressable onPress={() => setPasted("")} accessibilityRole="button" hitSlop={8}>
+                      <T size={13} tone="dim">
+                        Remove
+                      </T>
+                    </Pressable>
+                  </View>
+                </View>
+              </View>
+            )}
           </Rise>
 
           {scan && (
@@ -259,13 +346,6 @@ export default function NewTopic() {
             </Animated.View>
           )}
 
-          {!scan && (
-            <Animated.View entering={FadeIn.delay(450)}>
-              <T size={13} tone="dim" style={{ marginTop: 10, marginLeft: 4 }}>
-                Slides, PDFs and pasted text are coming soon.
-              </T>
-            </Animated.View>
-          )}
 
           <Animated.View entering={FadeIn.delay(450)}>
             <T size={12.5} tone="muted" style={{ marginTop: 16, textAlign: "center" }}>
@@ -298,6 +378,19 @@ const styles = StyleSheet.create({
   },
   grabber: { alignSelf: "center", width: 38, height: 5, borderRadius: 3, backgroundColor: "rgba(255,255,255,0.22)" },
   chip: { height: 40, borderRadius: 999, paddingHorizontal: 15, justifyContent: "center", backgroundColor: "rgba(255,255,255,0.07)" },
+  pasteBox: {
+    marginTop: 10,
+    minHeight: 140,
+    maxHeight: 240,
+    borderRadius: 20,
+    padding: 16,
+    paddingTop: 14,
+    fontSize: 15,
+    lineHeight: 21,
+    color: colour.text,
+    backgroundColor: "rgba(255,255,255,0.07)",
+    fontFamily: font.regular,
+  },
   scanRow: { marginTop: 10, borderRadius: 22, flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 12, paddingLeft: 12, paddingRight: 16, backgroundColor: "rgba(255,255,255,0.055)" },
   scanIcon: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.08)" },
   scanCard: { marginTop: 10, borderRadius: 22, padding: 14 },
@@ -313,3 +406,7 @@ const styles = StyleSheet.create({
     fontFamily: font.regular,
   },
 });
+
+function words(t: string) {
+  return t.trim().split(/\s+/).filter(Boolean).length.toLocaleString("en-GB");
+}

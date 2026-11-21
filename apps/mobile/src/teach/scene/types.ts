@@ -1,6 +1,7 @@
 // The drawn scenes a lesson can send, mirrored from apps/api/src/scene.ts.
 // The server has already checked them, so the app can trust the shapes here.
-import { THINGS } from "./things";
+import { BODY_PARTS } from "./bodyparts";
+import { hasThing } from "./kit";
 
 export type Mark = "dot" | "ring" | "blocked";
 export type Motion = "still" | "drift" | "jiggle" | "cross" | "rise" | "fall" | "orbit" | "pulse" | "flow";
@@ -81,11 +82,15 @@ export interface VennScene {
 
 export type PairShape = "line" | "curve" | "jagged" | "smooth" | "split" | "join" | "scatter" | "aligned" | "one" | "many" | "loop" | "path";
 
+/** Colour for meaning: one soft wash behind a thing. Green for good, red for bad. Older servers leave it out. */
+export type Tone = "" | "good" | "bad";
+
 export interface PairSide {
   label: string;
   shape: PairShape;
   count: number;
   note: string;
+  tone?: Tone;
 }
 
 /** The difference between X and Y: two small pictures side by side, one lit. */
@@ -267,9 +272,13 @@ export interface BraceScene {
   lit: number;
 }
 
-/** A schematic map, north up. x 0 west to 1 east, y 0 south to 1 north. */
+/** A map, north up. x 0 west to 1 east, y 0 south to 1 north. With a region (a name in outlines.ts) the real coastline is drawn behind. */
 export interface MapScene {
   family: "map";
+  /** Older servers leave it out: a plain schematic map. */
+  region?: string;
+  /** Today's country borders, drawn faintly behind. */
+  borders?: boolean;
   places: { label: string; x: number; y: number }[];
   routes: { from: number; to: number }[];
   lit: number;
@@ -279,7 +288,7 @@ export interface MapScene {
 export interface ThingsScene {
   family: "things";
   layout: "row" | "versus" | "chain" | "orbit" | "scale" | "parts";
-  items: { thing: string; label: string; size: number }[];
+  items: { thing: string; label: string; size: number; tone?: Tone; mark?: Gesture }[];
   /** parts layout: named parts of the one thing, each at a spot on it. Older servers leave it out. */
   parts?: { label: string; at: string }[];
   lit: number;
@@ -459,19 +468,99 @@ export type Scene =
   | GeometryScene
   | BondsScene
   | LeverScene
-  | WorkingScene;
+  | WorkingScene
+  | StageScene
+  | QuoteScene
+  | BodyScene
+  | CircuitScene
+  | TableScene
+  | ColoursScene
+  | StaveScene;
+
+/** A marker gesture drawn over a thing: crossed out (ruled out, ended, wrong) or ticked (chosen, allowed, right). */
+export type Gesture = "" | "cross" | "tick";
+
+/** Who does what to whom, and where: people and things on one ground line, with what happens between them. */
+export interface StageScene {
+  family: "stage";
+  /** A place drawn behind them at the right, or "". */
+  place: string;
+  placeLabel: string;
+  placeTone?: Tone;
+  /** then: who this actor turns into once the acts are done (the same person in a new pose), or "". mark: a cross or a tick drawn over them by hand. */
+  actors: { thing: string; label: string; size: "small" | "normal" | "big"; tone?: Tone; then?: string; mark?: Gesture }[];
+  /** to -1 is the place. says and thinks ignore to. */
+  acts: { from: number; to: number; kind: "says" | "thinks" | "gives" | "goes" | "against" | "with"; label: string }[];
+  lit: number;
+}
+/** The exact words: a short passage with one phrase lit and a note on it. */
+export interface QuoteScene {
+  family: "quote";
+  text: string;
+  phrase: string;
+  note: string;
+  by: string;
+}
+
+/** Where it is in the body: the figure (head to hips, or whole) or the brain, with 1 to 4 named parts placed where they really are. */
+export interface BodyScene {
+  family: "body";
+  view: "torso" | "whole" | "brain";
+  /** part is a name in bodyparts.ts. */
+  parts: { part: string; label: string }[];
+  lit: number;
+}
+export type CircuitKind =
+  | "cell" | "battery" | "ac_supply" | "bulb" | "resistor" | "variable_resistor" | "switch_open" | "switch_closed" | "ammeter" | "voltmeter"
+  | "motor" | "diode" | "led" | "fuse" | "buzzer" | "thermistor" | "ldr" | "capacitor";
+/** A circuit diagram in standard symbols. Branch 0 is the main loop; 1 to 3 are rungs in parallel. */
+export interface CircuitScene {
+  family: "circuit";
+  parts: { kind: CircuitKind; label: string; branch: number }[];
+  lit: number;
+}
+/** A small table of words or values: a verb table, a truth table, a trace table, or one row of memory boxes. */
+export interface TableScene {
+  family: "table";
+  title: string;
+  cols: string[];
+  /** Every row has one cell for each column. */
+  rows: string[][];
+  litRow: number;
+  /** -1 lights the whole row. */
+  litCol: number;
+}
+/** Real colours, for when colour itself is the subject. The only device that is not silver. */
+export interface ColoursScene {
+  family: "colours";
+  layout: "row" | "band" | "wheel";
+  swatches: { name: string; hex: string }[];
+  lit: number;
+  note: string;
+}
+/** Notes on a stave. pitch is a letter, an optional # or b, and an octave ("C4", "F#4", "Bb3"); several joined by + make a chord. */
+export interface StaveScene {
+  family: "stave";
+  clef: "treble" | "bass";
+  time: string;
+  notes: { pitch: string; length: "whole" | "half" | "quarter" | "eighth" | "rest"; label: string }[];
+  lit: number;
+}
 
 /** The families this build of the app can draw. A newer server may send others: those fall back to the simple diagram. */
 export const DRAWABLE: readonly string[] = [
   "particles", "links", "graph", "balance", "compare", "stairs", "spectrum", "venn", "pair", "tree", "test", "threshold", "units", "crowd",
   "grid", "timeline", "layers", "wave", "mirror", "stack", "radial", "cutaway", "funnel", "sankey", "fan", "spiral", "zoom", "brace", "map", "things",
   "spectra", "pattern", "machine", "case", "forces", "equation", "bridge", "spread", "scatter", "matrix", "geometry", "bonds", "lever", "working",
+  "stage", "quote", "body", "circuit", "table", "colours", "stave",
 ];
 
 /** True when this build can draw the scene: a known family, and every thing in it known. */
 export function canDraw(scene: Scene | null | undefined): scene is Scene {
   if (!scene || !DRAWABLE.includes(scene.family)) return false;
-  if (scene.family === "things") return scene.items.every((t) => !!THINGS[t.thing]);
+  if (scene.family === "things") return scene.items.every((t) => hasThing(t.thing));
+  if (scene.family === "body") return scene.parts.every((t) => !!BODY_PARTS[t.part]);
+  if (scene.family === "stage") return scene.actors.every((t) => hasThing(t.thing)) && (!scene.place || hasThing(scene.place));
   return true;
 }
 

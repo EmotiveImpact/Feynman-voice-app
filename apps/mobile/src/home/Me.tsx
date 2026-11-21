@@ -1,39 +1,14 @@
-// Me: what you've done first, minutes after, then how Fenny behaves.
+// Me: about you. What you've done, your minutes, then a way into Settings.
 // It shows only what the phone really knows. The streak is soft on purpose:
 // it forgives a missed day a week (see docs/behavioural-design.md).
-import type { ReactNode } from "react";
 import { Press } from "../ui/Press";
 import { StyleSheet, View } from "react-native";
+import { router } from "expo-router";
 import type { SharedValue } from "react-native-reanimated";
-import { minutesLeft, PROTOTYPE_MINUTES, setExplainLevel, setFastReplies, type ExplainPref, setSessionView, setVoice, softStreak, type Profile, type VoicePref } from "../data/profile";
-import { warmPhononOnLaunch } from "../live/phononWarm";
-import { VIEWS } from "../live/ViewMenu";
+import { minutesLeft, PROTOTYPE_MINUTES, softStreak, type Profile } from "../data/profile";
 import { Icon, Label, T } from "../ui/kit";
 import { Page } from "./Page";
 import { CARD, In, mins } from "./Today";
-
-const VOICES: { id: VoicePref; label: string; note: string }[] = [
-  { id: "sonic", label: "Live", note: "Fenny's best voice. Needs a connection." },
-  { id: "phonon", label: "On this phone", note: "Downloads once (about 150 MB), then works offline." },
-];
-
-const REPLIES: { id: "steady" | "fast"; label: string; note: string }[] = [
-  { id: "steady", label: "Steady", note: "Fenny waits until you've clearly finished." },
-  { id: "fast", label: "Faster", note: "A trial. Fenny waits less, and you can talk over her with headphones on." },
-];
-
-const EXPLAIN: { id: ExplainPref; label: string; note: string }[] = [
-  { id: "smart", label: "Smart", note: "Starts plain and adapts to you." },
-  { id: "simple", label: "Simple", note: "Like you're five." },
-  { id: "standard", label: "Standard", note: "Like you're twelve." },
-  { id: "deep", label: "In depth", note: "University level." },
-];
-
-const VIEW_NOTES: Record<string, string> = {
-  light: "Just Fenny's light and her question.",
-  subtitles: "Her question in large words, and what you last said.",
-  chat: "The whole conversation as you go.",
-};
 
 export function Me({ profile, top, bottom, scrollY, onReplayIntro }: { profile: Profile; top: number; bottom: number; scrollY: SharedValue<number>; onReplayIntro: () => void }) {
   const left = minutesLeft(profile);
@@ -42,10 +17,8 @@ export function Me({ profile, top, bottom, scrollY, onReplayIntro }: { profile: 
   const streak = softStreak(profile.days);
   const topics = profile.topics.length;
   const share = Math.max(0, Math.min(1, left / PROTOTYPE_MINUTES));
-  const view = profile.sessionView ?? "light";
-  const voice = profile.voice ?? "sonic";
-  const replies = profile.fastReplies ? "fast" : "steady";
-  const explain = profile.explainLevel ?? "smart";
+  const ideas = profile.topics.reduce((n, t) => n + (t.known?.length ?? 0), 0);
+  const closed = profile.topics.reduce((n, t) => n + (t.gaps ?? []).filter((g) => g.clearedAt).length, 0);
   return (
     <Page top={top} bottom={bottom} scrollY={scrollY}>
       <In d={1}>
@@ -62,10 +35,13 @@ export function Me({ profile, top, bottom, scrollY, onReplayIntro }: { profile: 
         <View style={[styles.card, styles.stats]}>
           <Stat value={String(sessions)} label="sessions" />
           <View style={styles.rule} />
-          <Stat value={String(questions)} label="questions" />
+          <Stat value={String(ideas)} label="ideas explained" />
           <View style={styles.rule} />
-          <Stat value={mins(profile.secondsUsed)} label="explaining" />
+          <Stat value={String(closed)} label="gaps closed" />
         </View>
+        <T size={13} tone="muted" style={{ marginTop: 10, marginLeft: 4 }}>
+          {mins(profile.secondsUsed)} explaining · {questions} questions from Fenny
+        </T>
       </In>
 
       <In d={3}>
@@ -89,42 +65,31 @@ export function Me({ profile, top, bottom, scrollY, onReplayIntro }: { profile: 
       </In>
 
       <In d={4}>
-        <Label style={styles.heading}>Fenny</Label>
-        <View style={styles.card}>
-          <Setting title="On a call, show" note={VIEW_NOTES[view]}>
-            <Segments label="Session view" options={VIEWS.map((v) => ({ id: v.id, label: v.id === "light" ? "Light" : v.id === "subtitles" ? "Subtitles" : "Chat" }))} value={view} onChange={setSessionView} />
-          </Setting>
-          <Setting title="Voice" note={VOICES.find((v) => v.id === voice)?.note} rule>
-            <Segments
-              label="Fenny's voice"
-              options={VOICES}
-              value={voice}
-              onChange={(id) => {
-                setVoice(id);
-                warmPhononOnLaunch(id);
-              }}
-            />
-          </Setting>
-          <Setting title="Replies" note={REPLIES.find((r) => r.id === replies)?.note} rule>
-            <Segments label="Replies" options={REPLIES} value={replies} onChange={(id) => setFastReplies(id === "fast")} />
-          </Setting>
-          <Setting title="Teach me explains" note={EXPLAIN.find((e) => e.id === explain)?.note} rule>
-            <Segments label="Explain things" options={EXPLAIN} value={explain} onChange={setExplainLevel} />
-          </Setting>
-        </View>
-      </In>
-
-      <In d={5}>
-        <View style={[styles.card, { marginTop: 14 }]}>
-          <Press onPress={onReplayIntro} style={styles.rowBtn} accessibilityRole="button">
-            <T size={15.5} style={{ flex: 1 }}>
-              Play the intro again
-            </T>
-            <Icon name="chevron" size={18} color="#888D96" />
-          </Press>
+        <View style={[styles.card, { marginTop: 22 }]}>
+          <Row icon="settings" label="Settings" note="Voice, what a call shows, Teach me" onPress={() => router.push("/settings")} />
+          <Row icon="arrow" label="Play the intro again" onPress={onReplayIntro} rule />
         </View>
       </In>
     </Page>
+  );
+}
+
+function Row({ icon, label, note, onPress, rule }: { icon: "settings" | "arrow"; label: string; note?: string; onPress: () => void; rule?: boolean }) {
+  return (
+    <Press onPress={onPress} accessibilityRole="button" accessibilityLabel={label} style={[styles.row, rule && styles.rowRule]}>
+      <View style={styles.rowIcon}>
+        <Icon name={icon} size={18} color="#C9CDD4" />
+      </View>
+      <View style={{ flex: 1, gap: 1 }}>
+        <T size={15.5}>{label}</T>
+        {note ? (
+          <T size={13} tone="muted">
+            {note}
+          </T>
+        ) : null}
+      </View>
+      <Icon name="chevron" size={18} color="#888D96" />
+    </Press>
   );
 }
 
@@ -134,42 +99,9 @@ function Stat({ value, label }: { value: string; label: string }) {
       <T size={22} weight="medium" style={{ lineHeight: 28 }}>
         {value}
       </T>
-      <T size={13} tone="muted">
+      <T size={13} tone="muted" style={{ textAlign: "center" }}>
         {label}
       </T>
-    </View>
-  );
-}
-
-/** One setting: its name, the choice, and one line on what the choice means. */
-function Setting({ title, note, rule, children }: { title: string; note?: string; rule?: boolean; children: ReactNode }) {
-  return (
-    <View style={[styles.setting, rule && styles.settingRule]}>
-      <T size={15.5}>{title}</T>
-      {children}
-      {note ? (
-        <T size={13} tone="muted">
-          {note}
-        </T>
-      ) : null}
-    </View>
-  );
-}
-
-/** A row of choices in one soft track, the chosen one lifted. */
-function Segments<Id extends string>({ label, options, value, onChange }: { label: string; options: readonly { id: Id; label: string }[]; value: Id; onChange: (id: Id) => void }) {
-  return (
-    <View style={styles.segments} accessibilityRole="radiogroup" accessibilityLabel={label}>
-      {options.map((o) => {
-        const on = o.id === value;
-        return (
-          <Press key={o.id} accessibilityRole="radio" accessibilityState={{ selected: on }} accessibilityLabel={o.label} onPress={() => onChange(o.id)} style={[styles.segment, on && styles.segmentOn]}>
-            <T size={13.5} weight={on ? "medium" : "regular"} tone={on ? "text" : "muted"} lines={1}>
-              {o.label}
-            </T>
-          </Press>
-        );
-      })}
     </View>
   );
 }
@@ -181,10 +113,7 @@ const styles = StyleSheet.create({
   rule: { width: StyleSheet.hairlineWidth, alignSelf: "stretch", backgroundColor: "rgba(255,255,255,0.12)" },
   track: { marginTop: 14, height: 6, borderRadius: 3, backgroundColor: "rgba(255,255,255,0.09)", overflow: "hidden" },
   fill: { height: "100%", borderRadius: 3, backgroundColor: "#B4C4E4" },
-  setting: { paddingVertical: 16, paddingHorizontal: 18, gap: 10 },
-  settingRule: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "rgba(255,255,255,0.1)" },
-  segments: { flexDirection: "row", gap: 3, padding: 3, borderRadius: 15, backgroundColor: "rgba(0,0,0,0.28)" },
-  segment: { flex: 1, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center", paddingHorizontal: 4 },
-  segmentOn: { backgroundColor: "rgba(255,255,255,0.13)" },
-  rowBtn: { flexDirection: "row", alignItems: "center", paddingVertical: 17, paddingHorizontal: 18 },
+  row: { flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 14, paddingHorizontal: 16 },
+  rowRule: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "rgba(255,255,255,0.1)" },
+  rowIcon: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.08)" },
 });

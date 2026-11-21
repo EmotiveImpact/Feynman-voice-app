@@ -34,6 +34,7 @@ export default function RootLayout() {
         <Stack.Screen name="intro" options={{ animation: "fade", gestureEnabled: false }} />
         <Stack.Screen name="topic" options={{ presentation: "transparentModal", animation: "none" }} />
         <Stack.Screen name="map" />
+        <Stack.Screen name="settings" />
         <Stack.Screen name="look" options={{ animation: "fade" }} />
         <Stack.Screen name="dev" options={{ presentation: "modal" }} />
       </Stack>

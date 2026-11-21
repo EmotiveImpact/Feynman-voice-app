@@ -33,7 +33,7 @@ export function TopBar({ top, tab, minutes, scrollY, onMe }: { top: number; tab:
   }));
   return (
     <View pointerEvents="box-none" style={[styles.top, { paddingTop: top + 6 }]}>
-      <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { bottom: -34 }, shade]}>
+      <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { bottom: -56 }, shade]}>
         <LinearGradient colors={[colour.ground, colour.ground, "rgba(8,9,11,0)"]} locations={[0, 0.62, 1]} style={StyleSheet.absoluteFill} />
       </Animated.View>
       <Animated.View style={name}>

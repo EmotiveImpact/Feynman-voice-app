@@ -11,6 +11,7 @@ import { colour, font } from "../theme";
 import { Icon, Label, T } from "../ui/kit";
 import { riseIn, STAGGER_MS } from "../ui/motion";
 import { Soft } from "../ui/Soft";
+import { GapDeck } from "./GapDeck";
 import { IdeaDots } from "./IdeaDots";
 import { Page } from "./Page";
 
@@ -122,38 +123,43 @@ export function Today({
             {profile.topics.length ? "Nothing to go over. Gaps from your sessions come back here." : "Nothing yet. Explain your first topic and this fills up."}
           </T>
         ) : (
-          <View style={[styles.card, styles.list]}>
-            {(showAll ? gaps : gaps.slice(0, 5)).map(({ topic, gap }, i) => (
-              <Press
-                key={gap.id}
-                onPress={() => onGap(topic, gap)}
-                accessibilityRole="button"
-                accessibilityLabel={`Explain again: ${gap.title}`}
-                style={[styles.gapRow, i > 0 && styles.divider]}
-              >
-                <View style={[styles.dot, gap.kind === "skipped" ? { backgroundColor: colour.student } : { backgroundColor: colour.gap }]} />
-                <View style={{ flex: 1, gap: 3 }}>
-                  <T size={15.5} lines={2} style={{ lineHeight: 21 }}>
-                    {gap.title}
-                  </T>
-                  <T size={13} tone="muted" lines={1}>
-                    <T size={13} style={{ color: gap.kind === "skipped" ? "#B4C4E4" : "#E5A794" }}>
-                      {gap.named ? "You named it" : gap.kind === "skipped" ? "Skipped" : gap.kind === "muddled" ? "Not quite" : "Gap"}
-                    </T>
-                    {" · "}
-                    {topic} · {ago(gap.at)}
-                  </T>
-                </View>
-              </Press>
-            ))}
-            {gaps.length > 5 && (
-              <Press onPress={() => setShowAll((v) => !v)} accessibilityRole="button" style={[styles.gapRow, styles.divider, { justifyContent: "center" }]}>
+          <>
+            <GapDeck gaps={gaps} onOpen={onGap} />
+            {gaps.length > 1 && (
+              <Press onPress={() => setShowAll((v) => !v)} accessibilityRole="button" style={styles.seeAll}>
                 <T size={14} tone="soft">
-                  {showAll ? "Show fewer" : `Show all ${gaps.length}`}
+                  {showAll ? "Hide the list" : `See all ${gaps.length} as a list`}
                 </T>
               </Press>
             )}
-          </View>
+            {showAll && (
+              <View style={[styles.card, styles.list]}>
+                {gaps.map(({ topic, gap }, i) => (
+                  <Press
+                    key={gap.id}
+                    onPress={() => onGap(topic, gap)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Explain again: ${gap.title}`}
+                    style={[styles.gapRow, i > 0 && styles.divider]}
+                  >
+                    <View style={[styles.dot, gap.kind === "skipped" ? { backgroundColor: colour.student } : { backgroundColor: colour.gap }]} />
+                    <View style={{ flex: 1, gap: 3 }}>
+                      <T size={15.5} lines={2} style={{ lineHeight: 21 }}>
+                        {gap.title}
+                      </T>
+                      <T size={13} tone="muted" lines={1}>
+                        <T size={13} style={{ color: gap.kind === "skipped" ? "#B4C4E4" : "#E5A794" }}>
+                          {gap.named ? "You named it" : gap.kind === "skipped" ? "Skipped" : gap.kind === "muddled" ? "Not quite" : "Gap"}
+                        </T>
+                        {" · "}
+                        {topic} · {ago(gap.at)}
+                      </T>
+                    </View>
+                  </Press>
+                ))}
+              </View>
+            )}
+          </>
         )}
       </In>
     </Page>
@@ -187,4 +193,5 @@ const styles = StyleSheet.create({
   gapRow: { flexDirection: "row", alignItems: "flex-start", gap: 12, paddingVertical: 15, paddingHorizontal: 18 },
   divider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "rgba(255,255,255,0.1)" },
   dot: { width: 7, height: 7, borderRadius: 4, marginTop: 7 },
+  seeAll: { alignSelf: "center", paddingVertical: 10, paddingHorizontal: 14, marginTop: 4 },
 });
