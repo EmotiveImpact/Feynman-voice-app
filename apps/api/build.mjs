@@ -45,6 +45,10 @@ cpSync(fn, `${out}/functions/api/look.func`, { recursive: true });
 const readPage = `${out}/functions/api/read-page.func`;
 cpSync(fn, readPage, { recursive: true });
 writeFileSync(`${readPage}/.vc-config.json`, JSON.stringify({ ...config, maxDuration: 60 }, null, 2));
+// A file of notes (PDF, slides, Word). A long PDF can take a minute to read.
+const readFile = `${out}/functions/api/read-file.func`;
+cpSync(fn, readFile, { recursive: true });
+writeFileSync(`${readFile}/.vc-config.json`, JSON.stringify({ ...config, maxDuration: 90 }, null, 2));
 // After the call: gap analysis and "Show me". Same bundle again.
 for (const name of ["analyse", "show-me"]) cpSync(fn, `${out}/functions/api/${name}.func`, { recursive: true });
 // The iPhone voice model, served as static files for the app to download.
