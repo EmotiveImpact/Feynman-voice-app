@@ -2,7 +2,7 @@
 // minutes, you) and the bottom bar (three tabs plus the light to start).
 import { Press } from "../ui/Press";
 import { StyleSheet, View } from "react-native";
-import Animated, { useAnimatedStyle, useSharedValue } from "react-native-reanimated";
+import Animated, { Extrapolation, interpolate, type SharedValue, useAnimatedStyle, useSharedValue } from "react-native-reanimated";
 import { useEffect } from "react";
 import { LinearGradient } from "expo-linear-gradient";
 import { colour } from "../theme";
@@ -20,28 +20,38 @@ const TABS: { id: HomeTab; label: string }[] = [
   { id: "me", label: "Me" },
 ];
 
-export function TopBar({ top, tab, minutes, initial, onMe }: { top: number; tab: HomeTab; minutes: number; initial: string; onMe: () => void }) {
+/**
+ * The top of a home page. At rest it is only the minutes left, so the page's
+ * own heading leads. Once the page scrolls, a soft fade and the page's name
+ * come in, so text never runs under the clock.
+ */
+export function TopBar({ top, tab, minutes, scrollY, onMe }: { top: number; tab: HomeTab; minutes: number; scrollY: SharedValue<number>; onMe: () => void }) {
+  const shade = useAnimatedStyle(() => ({ opacity: interpolate(scrollY.value, [4, 44], [0, 1], Extrapolation.CLAMP) }));
+  const name = useAnimatedStyle(() => ({
+    opacity: interpolate(scrollY.value, [36, 76], [0, 1], Extrapolation.CLAMP),
+    transform: [{ translateY: interpolate(scrollY.value, [36, 76], [6, 0], Extrapolation.CLAMP) }],
+  }));
   return (
-    <View style={[styles.top, { paddingTop: top + 6 }]}>
-      <T size={17} weight="semibold">
-        {TABS.find((t) => t.id === tab)?.label}
-      </T>
-      <View style={{ flexDirection: "row", gap: 8 }}>
-        <Press onPress={onMe} accessibilityRole="button" accessibilityLabel={`${minutes} minutes left`}>
-          <Glass style={styles.minutes}>
-            <T size={13} weight="mono">
+    <View pointerEvents="box-none" style={[styles.top, { paddingTop: top + 6 }]}>
+      <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { bottom: -56 }, shade]}>
+        <LinearGradient colors={[colour.ground, colour.ground, "rgba(8,9,11,0)"]} locations={[0, 0.62, 1]} style={StyleSheet.absoluteFill} />
+      </Animated.View>
+      <Animated.View style={name}>
+        <T size={16} weight="semibold">
+          {TABS.find((t) => t.id === tab)?.label}
+        </T>
+      </Animated.View>
+      {tab !== "me" ? (
+        <Press onPress={onMe} accessibilityRole="button" accessibilityLabel={`${minutes} minutes left`} hitSlop={8}>
+          <View style={styles.minutes}>
+            <T size={13} weight="medium" tone="soft">
               {minutes} min
             </T>
-          </Glass>
+          </View>
         </Press>
-        <Press onPress={onMe} accessibilityRole="button" accessibilityLabel="You">
-          <Glass style={styles.avatar}>
-            <T size={14} weight="semibold">
-              {initial}
-            </T>
-          </Glass>
-        </Press>
-      </View>
+      ) : (
+        <View style={{ height: 34 }} />
+      )}
     </View>
   );
 }
@@ -79,7 +89,7 @@ export function Nav({ bottom, tab, onChange, onStart, width }: { bottom: number;
             onPress={() => onChange(t.id)}
             style={styles.navItem}
           >
-            <T size={12.5} tone={t.id === tab ? "text" : "muted"}>
+            <T size={13.5} weight={t.id === tab ? "medium" : "regular"} tone={t.id === tab ? "text" : "muted"}>
               {t.label}
             </T>
           </Press>
@@ -97,8 +107,7 @@ export function Nav({ bottom, tab, onChange, onStart, width }: { bottom: number;
 
 const styles = StyleSheet.create({
   top: { position: "absolute", left: 0, right: 0, top: 0, paddingHorizontal: 20, paddingBottom: 10, flexDirection: "row", justifyContent: "space-between", alignItems: "center", zIndex: 5 },
-  minutes: { height: 36, borderRadius: 999, paddingHorizontal: 12, justifyContent: "center" },
-  avatar: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: colour.glass },
+  minutes: { height: 34, borderRadius: 999, paddingHorizontal: 13, justifyContent: "center", backgroundColor: "rgba(255,255,255,0.07)" },
   scrim: { position: "absolute", left: 0, right: 0, bottom: 0, height: 170 },
   solidBar: { backgroundColor: "rgba(22,24,28,0.94)" },
   nav: { position: "absolute", left: 16, right: 16, flexDirection: "row", gap: 10 },

@@ -3,14 +3,18 @@
 // latest session arrive last, in steel blue, with a ring of light. Line art,
 // one weight, one thing lit at a time (the Visual Value rules).
 import { useEffect } from "react";
-import { ScrollView, StyleSheet, useWindowDimensions, View } from "react-native";
+import { StyleSheet, useWindowDimensions, View } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Line } from "react-native-svg";
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withRepeat, withSequence, withSpring, withTiming } from "react-native-reanimated";
-import { findTopic, useProfile } from "../data/profile";
+import { TELL_ME } from "../data/lastCall";
+import { ago, findTopic, useProfile, type SavedGap } from "../data/profile";
 import { colour } from "../theme";
-import { Backdrop, PillButton, T } from "../ui/kit";
+import { Backdrop, Icon, Label, PillButton, T } from "../ui/kit";
+import { HEADER_H, ScreenHeader, useHeaderScroll } from "../ui/ScreenHeader";
+import { mins } from "./Today";
 import { LivingLight } from "../ui/LivingLight";
 import { useFennyCue } from "../ui/FennyOrb";
 import { riseIn, spring, STAGGER_MS } from "../ui/motion";
@@ -49,8 +53,10 @@ export default function TopicMap() {
   const lit = ideas.filter((k) => known.has(k.id)).length;
   const all = ideas.length > 0 && lit === ideas.length;
   const W = width - 48;
-  const H = 280;
-  const at = (i: number) => ({ x: SPOTS[i][0] * W, y: SPOTS[i][1] * H });
+  // The sky is only as tall as its lowest star, so a short topic leaves no empty gap above the list.
+  const FULL = 280;
+  const H = FULL * Math.max(0.3, ...ideas.map((_, i) => SPOTS[i][1])) + 26;
+  const at = (i: number) => ({ x: SPOTS[i][0] * W, y: SPOTS[i][1] * FULL });
   const [cue, react] = useFennyCue();
   useEffect(() => {
     if (!fresh.size) return;
@@ -59,21 +65,21 @@ export default function TopicMap() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const gaps = (rec?.gaps ?? []).filter((g) => !g.clearedAt);
+  const { scrollY, onScroll } = useHeaderScroll();
+  const openGap = (g: SavedGap) => router.push({ pathname: "/session", params: { topic, prompt: TELL_ME, focus: g.title, focusId: g.id } });
+
   return (
     <View style={styles.root}>
       <Backdrop scene="topic" />
-      <ScrollView contentContainerStyle={{ paddingTop: insets.top + 12, paddingBottom: insets.bottom + 120, paddingHorizontal: 24 }}>
-        <View style={styles.top}>
-          <Press accessibilityRole="button" accessibilityLabel="Back to Topics" onPress={() => router.back()} hitSlop={10} style={{ paddingVertical: 8 }}>
-            <T size={14} tone="soft">
-              Topics
-            </T>
-          </Press>
-          <LivingLight size={44} peek cue={cue} touchable />
-        </View>
-
-        <Animated.View entering={riseIn()} style={{ gap: 6, marginTop: 18 }}>
-          <T size={30} weight="medium" style={{ lineHeight: 34 }}>
+      <Animated.ScrollView
+        onScroll={onScroll}
+        scrollEventThrottle={16}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingTop: insets.top + HEADER_H + 8, paddingBottom: insets.bottom + 170, paddingHorizontal: 24 }}
+      >
+        <Animated.View entering={riseIn()} style={{ gap: 6, marginTop: 6 }}>
+          <T size={30} weight="medium" style={{ lineHeight: 35 }}>
             {topic}
           </T>
           <T size={15} tone="soft">
@@ -86,7 +92,7 @@ export default function TopicMap() {
         </Animated.View>
 
         {ideas.length > 0 && (
-          <View style={{ width: W, height: H, marginTop: 34 }} accessibilityLabel={`${lit} of ${ideas.length} ideas lit`}>
+          <View style={{ width: W, height: H, marginTop: 26 }} accessibilityLabel={`${lit} of ${ideas.length} ideas lit`}>
             <Svg width={W} height={H} style={StyleSheet.absoluteFill}>
               {LINKS.filter(([a, b]) => a < ideas.length && b < ideas.length).map(([a, b]) => {
                 const on = known.has(ideas[a].id) && known.has(ideas[b].id);
@@ -113,38 +119,127 @@ export default function TopicMap() {
           </View>
         )}
 
-        <View style={{ gap: 14, marginTop: 30 }}>
-          {ideas.map((k, i) => (
-            <Animated.View key={k.id} entering={riseIn((i + 3) * STAGGER_MS)} style={styles.idea}>
-              <View style={[styles.num, known.has(k.id) && styles.numLit, fresh.has(k.id) && styles.numFresh]}>
-                <T size={11} weight="mono" style={{ color: known.has(k.id) ? colour.ground : colour.muted }}>
-                  {i + 1}
-                </T>
-              </View>
-              {/* Ideas still to explain show only their name, so the page never gives the answer away. */}
-              <View style={{ flex: 1, gap: 3 }}>
-                <T size={15} tone={known.has(k.id) ? "text" : "muted"} style={{ lineHeight: 21 }}>
-                  {k.label ? cap(k.label) : known.has(k.id) ? k.idea : `Idea ${i + 1}`}
-                  {fresh.has(k.id) ? <T size={13} tone="student">{"  "}New</T> : null}
-                </T>
-                {k.label && known.has(k.id) ? (
-                  <T size={13.5} tone="soft" style={{ lineHeight: 19 }}>
-                    {k.idea}
-                  </T>
-                ) : null}
-              </View>
-            </Animated.View>
-          ))}
-        </View>
-      </ScrollView>
+        {ideas.length > 0 && (
+          <Animated.View entering={riseIn(2 * STAGGER_MS)}>
+            <Label style={styles.heading}>The ideas</Label>
+            <View style={[styles.card, { paddingVertical: 6 }]}>
+              {ideas.map((k, i) => (
+                <View key={k.id} style={[styles.idea, i > 0 && styles.rule]}>
+                  <View style={[styles.num, known.has(k.id) && styles.numLit, fresh.has(k.id) && styles.numFresh]}>
+                    <T size={11.5} weight="medium" style={{ color: known.has(k.id) ? colour.ground : colour.muted, lineHeight: 15 }}>
+                      {i + 1}
+                    </T>
+                  </View>
+                  {/* Ideas still to explain show only their name, so the page never gives the answer away. */}
+                  <View style={{ flex: 1, gap: 3 }}>
+                    <T size={15.5} tone={known.has(k.id) ? "text" : "muted"} style={{ lineHeight: 21 }}>
+                      {k.label ? cap(k.label) : known.has(k.id) ? k.idea : `Idea ${i + 1}`}
+                      {fresh.has(k.id) ? <T size={13} tone="student">{"  "}New</T> : null}
+                    </T>
+                    {k.label && known.has(k.id) ? (
+                      <T size={13.5} tone="soft" style={{ lineHeight: 19 }}>
+                        {k.idea}
+                      </T>
+                    ) : !known.has(k.id) ? (
+                      <T size={13} tone="dim">
+                        Not explained yet
+                      </T>
+                    ) : null}
+                  </View>
+                </View>
+              ))}
+            </View>
+          </Animated.View>
+        )}
 
-      <View style={[styles.bottom, { paddingBottom: Math.max(insets.bottom, 14) + 8 }]}>
+        {gaps.length > 0 && (
+          <Animated.View entering={riseIn(3 * STAGGER_MS)}>
+            <Label style={styles.heading}>Explain again</Label>
+            <View style={styles.card}>
+              {gaps.map((g, i) => (
+                <Press key={g.id} onPress={() => openGap(g)} accessibilityRole="button" accessibilityLabel={`Explain again: ${g.title}`} style={[styles.idea, i > 0 && styles.rule]}>
+                  <View style={[styles.dot, { backgroundColor: g.kind === "skipped" ? colour.student : colour.gap }]} />
+                  <View style={{ flex: 1, gap: 3 }}>
+                    <T size={15.5} style={{ lineHeight: 21 }}>
+                      {g.title}
+                    </T>
+                    <T size={13} style={{ color: g.kind === "skipped" ? "#B4C4E4" : "#E5A794" }}>
+                      {g.named ? "You named it" : g.kind === "skipped" ? "Skipped" : g.kind === "muddled" ? "Not quite" : "Gap"}
+                    </T>
+                  </View>
+                  <Icon name="chevron" size={18} color={colour.muted} />
+                </Press>
+              ))}
+            </View>
+          </Animated.View>
+        )}
+
+        {rec && (
+          <Animated.View entering={riseIn(4 * STAGGER_MS)}>
+            <View style={[styles.card, styles.facts]}>
+              <Fact value={String(rec.sessions)} label={rec.sessions === 1 ? "session" : "sessions"} />
+              <View style={styles.vrule} />
+              <Fact value={mins(rec.seconds)} label="explaining" />
+              <View style={styles.vrule} />
+              <Fact value={cap(ago(rec.at))} label="last time" />
+            </View>
+          </Animated.View>
+        )}
+
+        {ideas.length > 0 && (
+          <Animated.View entering={riseIn(5 * STAGGER_MS)}>
+            <Label style={styles.heading}>How this works</Label>
+            <View style={[styles.card, { padding: 18, gap: 12 }]}>
+              <How dot={<View style={[styles.legend, { backgroundColor: "#E6E9EE" }]} />} text="A star lights up when you explain that idea clearly to Fenny." />
+              <How dot={<View style={[styles.legend, { backgroundColor: colour.student }]} />} text="Blue means you lit it in your last session." />
+              <How dot={<View style={[styles.legend, styles.legendOff]} />} text="An empty star is an idea Fenny is still waiting to hear about." />
+            </View>
+          </Animated.View>
+        )}
+      </Animated.ScrollView>
+
+      <ScreenHeader top={insets.top} title={topic} backLabel="Back to Topics" scrollY={scrollY} right={<LivingLight size={32} peek cue={cue} touchable />} />
+
+      <View style={[styles.bottom, { paddingBottom: Math.max(insets.bottom, 14) + 4 }]}>
+        <LinearGradient pointerEvents="none" colors={["rgba(8,9,11,0)", colour.ground]} style={styles.bottomFade} />
         <PillButton
           label={all ? "Explain it again" : "Explain it to Fenny"}
           variant="solid"
           onPress={() => router.replace({ pathname: "/session", params: { topic } })}
         />
+        {!all && (
+          <PillButton
+            label="Teach me first"
+            accessibilityLabel="Teach me first: a short lesson before you explain"
+            onPress={() => router.replace({ pathname: "/session", params: { topic, teach: "1" } })}
+            style={{ marginTop: 8, height: 48 }}
+          />
+        )}
       </View>
+    </View>
+  );
+}
+
+function Fact({ value, label }: { value: string; label: string }) {
+  return (
+    <View style={{ flex: 1, alignItems: "center", gap: 2 }}>
+      <T size={17} weight="medium" lines={1}>
+        {value}
+      </T>
+      <T size={12.5} tone="muted">
+        {label}
+      </T>
+    </View>
+  );
+}
+
+function How({ dot, text }: { dot: React.ReactNode; text: string }) {
+  return (
+    <View style={{ flexDirection: "row", gap: 12, alignItems: "center" }}>
+      <View style={{ width: 14, alignItems: "center" }}>{dot}</View>
+      <T size={14} tone="soft" style={{ flex: 1, lineHeight: 20 }}>
+        {text}
+      </T>
     </View>
   );
 }
@@ -181,12 +276,20 @@ function Star({ x, y, n, lit, fresh, delay, all }: { x: number; y: number; n: nu
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colour.ground },
-  top: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  heading: { marginTop: 28, marginLeft: 4 },
+  card: { marginTop: 10, borderRadius: 24, backgroundColor: "rgba(255,255,255,0.055)" },
+  rule: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "rgba(255,255,255,0.1)" },
+  vrule: { width: StyleSheet.hairlineWidth, alignSelf: "stretch", backgroundColor: "rgba(255,255,255,0.12)" },
+  facts: { marginTop: 22, flexDirection: "row", alignItems: "center", paddingVertical: 16 },
+  dot: { width: 7, height: 7, borderRadius: 4, marginTop: 7, marginHorizontal: 7 },
+  legend: { width: 11, height: 11, borderRadius: 6 },
+  legendOff: { borderWidth: 1.5, borderColor: "rgba(214,218,226,0.35)" },
+  bottomFade: { position: "absolute", left: -24, right: -24, top: -40, height: 40 },
   star: { position: "absolute", width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   ring: { position: "absolute", width: 14, height: 14, borderRadius: 7, borderWidth: 1.5, borderColor: colour.student },
-  idea: { flexDirection: "row", gap: 12, alignItems: "flex-start" },
+  idea: { flexDirection: "row", gap: 12, alignItems: "flex-start", paddingVertical: 13, paddingHorizontal: 16 },
   num: { width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center", borderWidth: 1.5, borderColor: "rgba(214,218,226,0.3)", marginTop: 0 },
   numLit: { backgroundColor: "#E6E9EE", borderColor: "#E6E9EE" },
   numFresh: { backgroundColor: colour.student, borderColor: colour.student },
-  bottom: { position: "absolute", left: 24, right: 24, bottom: 0 },
+  bottom: { position: "absolute", left: 0, right: 0, bottom: 0, paddingHorizontal: 24, paddingTop: 6, backgroundColor: colour.ground },
 });

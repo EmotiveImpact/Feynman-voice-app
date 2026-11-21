@@ -10,8 +10,8 @@ export const colour = {
   hairlineSoft: "rgba(255,255,255,0.08)",
   // Softened a touch (build 11): body text and labels sit lower in contrast.
   text: "#E4E6EA",
-  textDim: "#6F737B",
-  muted: "#7D828B",
+  textDim: "#747982",
+  muted: "#888D96",
   soft: "#A9ADB4",
   silver: "#E6E9EE",
   student: "#A9BEE6",
@@ -31,6 +31,6 @@ export const font = {
   monoMedium: "GeistMono_500Medium",
 } as const;
 
-export const radius = { card: 32, sheet: 38, pill: 999 } as const;
+export const radius = { card: 24, sheet: 38, pill: 999 } as const;
 
 export const space = { gutter: 20, gap: 10 } as const;
