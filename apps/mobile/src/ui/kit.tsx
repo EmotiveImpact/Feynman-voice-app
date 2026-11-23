@@ -141,7 +141,7 @@ export function Stat({ value, label, tone = "text" }: { value: string; label: st
   );
 }
 
-type IconName = "mic" | "close" | "check" | "pause" | "person" | "wave" | "camera" | "arrow" | "plus" | "chevron" | "back" | "settings" | "paste" | "file";
+type IconName = "mic" | "close" | "check" | "pause" | "person" | "wave" | "camera" | "arrow" | "plus" | "chevron" | "back" | "settings" | "paste";
 export function Icon({ name, size = 20, color = colour.text }: { name: IconName; size?: number; color?: string }) {
   const p = { stroke: color, strokeWidth: 1.6, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, fill: "none" };
   return (
@@ -168,7 +168,6 @@ export function Icon({ name, size = 20, color = colour.text }: { name: IconName;
           <Path d="M9.5 5V3.5h5V5M9 10h6M9 13.5h6M9 17h3.5" {...p} />
         </>
       )}
-      {name === "file" && <Path d="M7 3.5h6.5L18 8v12.5H7zM13 3.5V8.5h5M10 13h5M10 16.5h5" {...p} />}
       {name === "chevron" && <Path d="M9 6l6 6-6 6" {...p} />}
       {name === "close" && <Path d="M6 6l12 12M18 6L6 18" {...p} />}
       {name === "check" && <Path d="M5 12.5l4.5 4.5L19 7.5" {...p} />}

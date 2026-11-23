@@ -17,7 +17,6 @@ import { smooth, spring } from "../ui/motion";
 import { Soft } from "../ui/Soft";
 import { readPage } from "../api";
 import { joinPages, saveNotes } from "../data/notes";
-import { PickError, pickAndReadFile } from "./pickFile";
 import { inBatches, pageForUpload, scanPages } from "./scan";
 
 
@@ -39,26 +38,7 @@ export default function NewTopic() {
   const [pasting, setPasting] = useState(false);
   const [draft, setDraft] = useState("");
   const [pasted, setPasted] = useState("");
-  // Files picked from the phone (PDF, slides, Word), read on the server.
-  const [files, setFiles] = useState<{ name: string; text: string; pages: number }[]>([]);
-  const [fileState, setFileState] = useState<{ busy?: string; error?: string }>({});
-  const pages = [...scanned, ...files.map((f) => f.text), ...(pasted ? [pasted] : [])];
-  const addFile = async () => {
-    if (fileState.busy) return;
-    setFileState({});
-    try {
-      setFileState({ busy: "Choosing…" });
-      const got = await pickAndReadFile(topic.trim() || undefined);
-      if (!got) return setFileState({});
-      if (!got.readable || !got.text) return setFileState({ error: "I couldn't find any text in that file." });
-      setFiles((f) => [...f, { name: got.name, text: got.text, pages: got.pages }]);
-      if (!topic.trim() && got.title) setTopic(got.title);
-      setFileState({});
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-    } catch (e) {
-      setFileState({ error: e instanceof PickError || e instanceof Error ? e.message : "I couldn't read that file." });
-    }
-  };
+  const pages = pasted ? [...scanned, pasted] : scanned;
   const usePasted = () => {
     const text = draft.trim();
     if (!text) return;
@@ -233,48 +213,6 @@ export default function NewTopic() {
                 </View>
               </Press>
             )}
-            <Press onPress={addFile} accessibilityRole="button" accessibilityLabel="Add a file: PDF, slides or Word">
-              <View style={styles.scanRow}>
-                <View style={styles.scanIcon}>
-                  {fileState.busy ? <LivingLight size={24} mood="think" /> : <Icon name="file" size={20} color="#C9CDD4" />}
-                </View>
-                <View style={{ flex: 1, gap: 1 }}>
-                  <T size={15.5} weight="medium">
-                    {fileState.busy ? "Reading your file…" : files.length ? "Add another file" : "Add a file"}
-                  </T>
-                  <T size={13} tone="muted">
-                    PDF, slides or Word, from Files or Drive
-                  </T>
-                </View>
-                <Icon name="chevron" size={18} color={colour.muted} />
-              </View>
-            </Press>
-            {fileState.error ? (
-              <T size={13} style={{ color: "#E5A794", marginTop: 8, marginLeft: 4 }}>
-                {fileState.error}
-              </T>
-            ) : null}
-            {files.map((f, i) => (
-              <View key={`${f.name}-${i}`} style={[styles.scanRow, { paddingVertical: 10 }]}>
-                <View style={styles.scanIcon}>
-                  <Icon name="check" size={18} color="#C9CDD4" />
-                </View>
-                <View style={{ flex: 1, gap: 1 }}>
-                  <T size={14.5} weight="medium" lines={1}>
-                    {f.name}
-                  </T>
-                  <T size={12.5} tone="dim">
-                    {f.pages > 1 ? `${f.pages} slides · ` : ""}
-                    {words(f.text)} words read
-                  </T>
-                </View>
-                <Pressable onPress={() => setFiles((all) => all.filter((_, k) => k !== i))} accessibilityRole="button" accessibilityLabel={`Remove ${f.name}`} hitSlop={8}>
-                  <T size={13} tone="dim">
-                    Remove
-                  </T>
-                </Pressable>
-              </View>
-            ))}
             {!pasted && !pasting && (
               <Press onPress={() => setPasting(true)} accessibilityRole="button" accessibilityLabel="Paste your notes">
                 <View style={styles.scanRow}>
@@ -286,7 +224,7 @@ export default function NewTopic() {
                       Paste your notes
                     </T>
                     <T size={13} tone="muted">
-                      From an email or a web page
+                      From an email, a document or a web page
                     </T>
                   </View>
                   <Icon name="chevron" size={18} color={colour.muted} />

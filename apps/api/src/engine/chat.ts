@@ -14,11 +14,7 @@ export interface ChatCfg {
 }
 
 /** A message part in OpenAI's shape: text, or an image as a data URL. */
-export type ChatPart =
-  | { type: "text"; text: string }
-  | { type: "image_url"; image_url: { url: string; detail?: string } }
-  /** A PDF as a data URL (OpenAI's "file" part; a document block on Claude). */
-  | { type: "file"; file: { filename: string; file_data: string } };
+export type ChatPart = { type: "text"; text: string } | { type: "image_url"; image_url: { url: string; detail?: string } };
 export type ChatMessage = { role: string; content: string | ChatPart[] };
 
 type Env = Record<string, string | undefined>;
@@ -152,18 +148,12 @@ async function claudeJSON<T>(
 
 type ClaudeBlock =
   | { type: "text"; text: string }
-  | { type: "image"; source: { type: "base64"; media_type: "image/jpeg" | "image/png" | "image/webp" | "image/gif"; data: string } }
-  | { type: "document"; source: { type: "base64"; media_type: "application/pdf"; data: string } };
+  | { type: "image"; source: { type: "base64"; media_type: "image/jpeg" | "image/png" | "image/webp" | "image/gif"; data: string } };
 
 function toClaudeBlocks(content: string | ChatPart[]): ClaudeBlock[] {
   if (typeof content === "string") return [{ type: "text", text: content }];
   return content.map((p): ClaudeBlock => {
     if (p.type === "text") return { type: "text", text: p.text };
-    if (p.type === "file") {
-      const d = /^data:application\/pdf;base64,(.*)$/s.exec(p.file.file_data);
-      if (!d) throw new Error("Files must be base64 PDF data URLs");
-      return { type: "document", source: { type: "base64", media_type: "application/pdf", data: d[1] } };
-    }
     const m = /^data:(image\/(?:jpeg|png|webp|gif));base64,(.*)$/s.exec(p.image_url.url);
     if (!m) throw new Error("Images must be base64 data URLs");
     return { type: "image", source: { type: "base64", media_type: m[1] as "image/jpeg", data: m[2] } };

@@ -138,27 +138,6 @@ export async function readPage(imageBase64: string, topic?: string, signal?: Abo
   return body as ReadPage;
 }
 
-// A file of notes: PDF, PowerPoint (.pptx), Word (.docx) or text.
-export interface ReadFile {
-  title: string;
-  text: string;
-  readable: boolean;
-  pages: number;
-}
-
-export async function readFile(name: string, base64: string, topic?: string, signal?: AbortSignal): Promise<ReadFile> {
-  if (!API_URL) throw new Error("Set EXPO_PUBLIC_API_URL in apps/mobile/.env");
-  const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/read-file`, {
-    method: "POST",
-    headers: { "content-type": "application/json", authorization: `Bearer ${TOKEN}` },
-    body: JSON.stringify({ name, data: base64, topic }),
-    signal,
-  });
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error((body as { error?: string }).error ?? `Server returned ${res.status}`);
-  return body as ReadFile;
-}
-
 // Teach me -----------------------------------------------------------------
 
 export type PictureKind = "flow" | "compare" | "cycle" | "layers" | "parts" | "none";

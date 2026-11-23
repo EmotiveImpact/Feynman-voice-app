@@ -8,7 +8,6 @@ import { handleTurn } from "./turn";
 import { handleLesson } from "./lesson";
 import { handleSpeak } from "./speak";
 import { handleLook } from "./look";
-import { handleReadFile } from "./readFile";
 import { handleReadPage } from "./readPage";
 
 const ROUTES: Record<string, (req: Request) => Promise<Response>> = {
@@ -18,7 +17,6 @@ const ROUTES: Record<string, (req: Request) => Promise<Response>> = {
   "/api/speak": (r) => handleSpeak(r),
   "/api/look": (r) => handleLook(r),
   "/api/read-page": (r) => handleReadPage(r),
-  "/api/read-file": (r) => handleReadFile(r),
   "/api/analyse": (r) => handleAnalyse(r),
   "/api/show-me": (r) => handleShowMe(r),
 };
