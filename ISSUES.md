@@ -10,7 +10,6 @@ These are the things that still need action today.
 
 | What | Why it matters | What it needs |
 |---|---|---|
-| New TestFlight build running (started 23 November, 9:11) | The last TestFlight build is from 7 November. Adding PDF, PowerPoint and Word notes (21 November) added a new piece of phone code, so small updates no longer reach the old build. The blank picture fix and the design changes from 21 November are waiting behind it. | Edem presses **Run workflow** on [iOS to TestFlight](https://github.com/EmotiveImpact/Feynman-voice-app/actions/workflows/ios-testflight.yml). About 35 minutes, then update Fenny in TestFlight. |
 | Lesson catalogue not connected to the database | Saving and reusing lessons (PR [#70](https://github.com/EmotiveImpact/Feynman-voice-app/pull/70)) is built but sleeping, because the server has no database login yet. Lessons work as before in the meantime. | Edem says "yes, connect the database". |
 | Website waitlist table never created | The database had no tables at all before 21 November, so the website's waitlist table was never made. The website itself is not live at a domain yet either. | Create the table and put the website live when Edem is ready. |
 | OpenAI spare has no credit | When Claude fails, Fenny switches to OpenAI, but that account has no credit, so the spare does not really help. Edem chose Claude as the main brain on 19 November. | Nothing unless Edem wants a working spare. |
@@ -60,13 +59,21 @@ These are the things that still need action today.
 
 ## Deploys, builds and app updates
 
+### iPhone build failed: ONNX Runtime download site dead
+- **Date:** 23 November 2026
+- **What you saw:** the iOS to TestFlight build failed after 5 minutes, at "Install pods".
+- **Cause:** the voice library (ONNX Runtime) downloads its iPhone files from download.onnxruntime.ai. Since about 20 November that site serves the wrong security certificate and no files, for everyone, for every version.
+- **Fix:** Fenny now takes the same library from Microsoft's official NuGet package, checked against a fixed fingerprint (apps/mobile/plugins/onnxruntime-c.podspec). Build 21 went to TestFlight at 9:57.
+- **PR:** [#73](https://github.com/EmotiveImpact/Feynman-voice-app/pull/73)
+- **Status:** Fixed
+
 ### Phones stopped getting small updates
 - **Date:** 21 November 2026
 - **What you saw:** fixes merged but not showing on the phone.
 - **Cause:** adding files of notes needed a new piece of phone code (the file picker). Small over-the-air updates can only reach a TestFlight build that already has that code.
-- **Fix:** needs one new TestFlight build. After that, small updates flow again.
-- **PR:** [#66](https://github.com/EmotiveImpact/Feynman-voice-app/pull/66)
-- **Status:** Open (see top)
+- **Fix:** new TestFlight build 21 (23 November, runtime 3cf4e0dc). Small updates reach it again.
+- **PR:** [#66](https://github.com/EmotiveImpact/Feynman-voice-app/pull/66), build via [#73](https://github.com/EmotiveImpact/Feynman-voice-app/pull/73)
+- **Status:** Fixed (install build 21 from TestFlight)
 
 ### Server deploys failing on a Microsoft download
 - **Date:** 6 and 19 November 2026, fixed 20 November
