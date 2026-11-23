@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildLesson, checkLesson, handleLesson, keyWords, offTopic, oneDevice, quoteInNotes } from "../src/lesson";
+import { buildLesson, checkLesson, drawingProblems, handleLesson, keyWords, offTopic, oneDevice, quoteInNotes } from "../src/lesson";
 import { catalogueKey, normalise, type LessonStore } from "../src/lessonStore";
 
 const NOTES = "The cell membrane is a phospholipid bilayer. It is selectively permeable, so small non-polar molecules pass through freely while ions need channel proteins.";
@@ -159,6 +159,24 @@ describe("variety of drawings", () => {
     expect(oneDevice(checkLesson(withScenes(pair("In", "Out"), pair("Ion", "Fat")) as never, req))).toBe("pair");
     expect(oneDevice(checkLesson(withScenes(pair("In", "Out"), stairs) as never, req))).toBe("");
     expect(oneDevice(checkLesson(draft() as never, req))).toBe("");
+  });
+
+  it("spots pictures that look like every lesson or never build", () => {
+    const machine = (name: string) => ({ family: "machine", name, inputs: ["Ion"], outputs: ["Inside"], lit: 0 });
+    const shop = (label: string) => ({ family: "stage", place: "shop", placeLabel: "The shop", actors: [{ thing: "person:presenting:happy:bun", label: "Seller", size: "normal" }, { thing: "person:listening:neutral:cap", label: "Buyer", size: "normal" }], acts: [{ from: 0, to: 1, kind: "says", label }], lit: 0 });
+    const check = (a: object, b: object) => drawingProblems(checkLesson(withScenes(a, b) as never, req));
+    // The same picture twice.
+    expect(check(stairs, stairs).join(" ")).toContain("exactly the same picture");
+    // Two box-with-arrows machines.
+    expect(check(machine("Cell"), machine("Pump")).join(" ")).toContain("use machine");
+    // Nothing real: a chart then a box.
+    expect(check(stairs, machine("Pump")).join(" ")).toContain("chart or a box");
+    // A story that carries on: no problems.
+    expect(check(shop("Bike for £50"), shop("Deal"))).toEqual([]);
+    // A real thing, then a chart about something else: builds on nothing.
+    expect(check(shop("Bike for £50"), { family: "spectrum", left: "Acid", right: "Alkaline", min: 0, max: 14, marks: [], at: 7 }).join(" ")).toContain("never build");
+    // Stage twice is a story, not "the same device".
+    expect(oneDevice(checkLesson(withScenes(shop("Hi"), shop("Deal")) as never, req))).toBe("");
   });
 
   it("asks once for different drawings", async () => {

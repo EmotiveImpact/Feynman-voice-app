@@ -393,7 +393,7 @@ export function TeachMode({
             </T>
             <Animated.View entering={riseIn(STAGGER_MS * 3)} style={{ marginTop: 8 }}>
               {lesson.bites[step.i].scene ? (
-                <SceneView scene={lesson.bites[step.i].scene!} label={lesson.bites[step.i].caption || lesson.bites[step.i].title} caption={lesson.bites[step.i].caption} fallback={<Picture kind={lesson.bites[step.i].picture.kind} labels={lesson.bites[step.i].picture.labels} />} />
+                <SceneView scene={lesson.bites[step.i].scene!} from={step.i > 0 ? lesson.bites[step.i - 1].scene : null} label={lesson.bites[step.i].caption || lesson.bites[step.i].title} caption={lesson.bites[step.i].caption} fallback={<Picture kind={lesson.bites[step.i].picture.kind} labels={lesson.bites[step.i].picture.labels} />} />
               ) : (
                 <Picture kind={lesson.bites[step.i].picture.kind} labels={lesson.bites[step.i].picture.labels} />
               )}
