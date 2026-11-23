@@ -126,6 +126,14 @@ These are the things that still need action today.
 
 ## Teach me lessons and drawings
 
+### Pictures blank on the phone: the real cause, found 23 November
+- **Date:** 23 November 2026 (seen since drawings began on 6 November)
+- **What you saw:** the picture box in Teach me stayed empty on the phone, lesson after lesson, even after earlier fixes were reported as done.
+- **Cause:** on the phone, drawing code runs in a separate fast lane that rebuilds each drawing step from its own text. Sixteen of those steps had a default value (the usual line thickness or colour) written in a way that only works on a computer. On the phone it is looked up before it exists, so the drawing stops at the first line and the panel stays empty. Every earlier check used a preview in a web browser, which does not work this way, so it always looked fine. Tested the phone's way: 63 of 70 example pictures failed before, none after.
+- **Fix:** the defaults are now set inside each step, where they exist on the phone. A new test runs every example picture the way the phone does and fails if any of them breaks, so this cannot come back unseen.
+- **PR:** see the pull request "Fix blank Teach me pictures on the phone"
+- **Status:** Fixed. Sent to the phones on the current build as an update, and included for the new TestFlight build.
+
 ### Lesson pictures looked the same every time and never built up
 - **Date:** 23 November 2026
 - **What you saw:** in real lessons the pictures felt like the same thing over and over, and each picture started from scratch instead of building on the last.
