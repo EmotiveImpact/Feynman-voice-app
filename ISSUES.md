@@ -1,6 +1,6 @@
 # Issues
 
-Every problem Fenny has hit so far, what caused it, and how it was fixed. Grouped by area, newest first in each group. Last updated 22 November 2026.
+Every problem Fenny has hit so far, what caused it, and how it was fixed. Grouped by area, newest first in each group. Last updated 23 November 2026.
 
 Status key: **Fixed** means the fix is merged and live. **Fixed, needs app build** means the fix is merged but only reaches phones after a new TestFlight build. **Open** means it still needs doing.
 
@@ -10,7 +10,7 @@ These are the things that still need action today.
 
 | What | Why it matters | What it needs |
 |---|---|---|
-| New TestFlight build not yet made | The last TestFlight build is from 7 November. Adding PDF, PowerPoint and Word notes (21 November) added a new piece of phone code, so small updates no longer reach the old build. The blank picture fix and the design changes from 21 November are waiting behind it. | Edem presses **Run workflow** on [iOS to TestFlight](https://github.com/EmotiveImpact/Feynman-voice-app/actions/workflows/ios-testflight.yml). About 35 minutes, then update Fenny in TestFlight. |
+| New TestFlight build running (started 23 November, 9:11) | The last TestFlight build is from 7 November. Adding PDF, PowerPoint and Word notes (21 November) added a new piece of phone code, so small updates no longer reach the old build. The blank picture fix and the design changes from 21 November are waiting behind it. | Edem presses **Run workflow** on [iOS to TestFlight](https://github.com/EmotiveImpact/Feynman-voice-app/actions/workflows/ios-testflight.yml). About 35 minutes, then update Fenny in TestFlight. |
 | Lesson catalogue not connected to the database | Saving and reusing lessons (PR [#70](https://github.com/EmotiveImpact/Feynman-voice-app/pull/70)) is built but sleeping, because the server has no database login yet. Lessons work as before in the meantime. | Edem says "yes, connect the database". |
 | Website waitlist table never created | The database had no tables at all before 21 November, so the website's waitlist table was never made. The website itself is not live at a domain yet either. | Create the table and put the website live when Edem is ready. |
 | OpenAI spare has no credit | When Claude fails, Fenny switches to OpenAI, but that account has no credit, so the spare does not really help. Edem chose Claude as the main brain on 19 November. | Nothing unless Edem wants a working spare. |
@@ -125,6 +125,14 @@ These are the things that still need action today.
 - **Status:** Fixed
 
 ## Teach me lessons and drawings
+
+### Lesson pictures looked the same every time and never built up
+- **Date:** 23 November 2026
+- **What you saw:** in real lessons the pictures felt like the same thing over and over, and each picture started from scratch instead of building on the last.
+- **Cause:** the lesson writer reached for the same "box with arrows in and out" picture in 6 of 10 lessons, often for ideas that are not machines at all ("Your mind", "The economy"). A rule said never use the same kind of picture twice, so every bite jumped to a new, unrelated chart and the people and things that can walk from one picture to the next were rarely used. One lesson even drew the same graph twice.
+- **Fix:** the writer now plans one story that builds. Every lesson shows someone or something real, each picture keeps at least one named thing from the one before (people walk on to the next moment), the box picture is a last resort used at most once, and the same picture twice is refused. Lessons that break this are rewritten once. Tested on 10 real lessons across subjects: lessons using the box picture 6 to 1, lessons with a real person or thing 6 to 10, lessons where the pictures carry something on 5 to 10. Pictures also carry on in the non-voice lesson view on the phone.
+- **PR:** see the pull request "Teach me pictures: one story that builds"
+- **Status:** Fixed on the server. The phone part arrives after the new TestFlight build.
 
 ### Simpler turned a lesson into a different topic
 - **Date:** 21 November 2026

@@ -91,6 +91,6 @@ describe("the writer is told", () => {
     expect(SCENE_PROMPT).toContain("then (on an actor");
     expect(SCENE_PROMPT).toContain("Movement between pictures");
     expect(SCENE_PROMPT).toContain("mark (on an item of things or an actor of a stage");
-    expect(SCENE_PROMPT).toContain("stage may be used for two bites in a row");
+    expect(SCENE_PROMPT).toContain("stage and things may each be used again");
   });
 });

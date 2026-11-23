@@ -334,10 +334,67 @@ export function offTopic(lesson: Lesson, req: LessonRequest): string[] {
   return problems;
 }
 
-/** The one device every bite used, when a lesson of two or more bites drew them all the same way. Otherwise "". */
+/** The one device every bite used, when a lesson of two or more bites drew them all the same way. Otherwise "". Stage and things are story devices that carry on from bite to bite, so they never count. */
 export function oneDevice(lesson: Lesson): string {
   const fams = lesson.bites.map((b) => b.scene?.family ?? "");
-  return fams.length > 1 && fams[0] && fams.every((f) => f === fams[0]) ? fams[0] : "";
+  return fams.length > 1 && fams[0] && fams[0] !== "stage" && fams[0] !== "things" && fams.every((f) => f === fams[0]) ? fams[0] : "";
+}
+
+/** Devices that show someone or something real, rather than a chart, a box or arrows. */
+export const REAL_DEVICES = new Set(["stage", "things", "body", "map", "circuit", "bonds", "geometry", "stave", "quote", "colours", "particles", "zoom"]);
+
+/** The names a scene puts on screen, whole and lower case, for seeing what one picture keeps from the last. */
+const NOT_NAMES = new Set(["family", "layout", "style", "kind", "shape", "motion", "mark", "tone", "placeTone", "size", "highlight", "scale", "action", "divider", "then", "pitch", "length", "clef", "time", "hex", "lit", "at", "litShape", "crowd", "feedback", "dir", "sign", "trend", "strength"]);
+export function sceneNames(scene: unknown): Set<string> {
+  const out = new Set<string>();
+  const walk = (v: unknown, key: string) => {
+    if (typeof v === "string") {
+      if (NOT_NAMES.has(key) || !v.trim()) return;
+      // A kit person's hat says who they are, so the same hat counts as kept.
+      if (v.startsWith("person:")) {
+        const hat = v.split(":")[3];
+        if (hat) out.add(`hat:${hat}`);
+        return;
+      }
+      out.add(v.trim().toLowerCase());
+    } else if (Array.isArray(v)) v.forEach((x) => walk(x, key));
+    else if (v && typeof v === "object") for (const [k, x] of Object.entries(v)) walk(x, k);
+  };
+  walk(scene, "");
+  return out;
+}
+
+/**
+ * Catches a lesson whose pictures will look like every other lesson's, or that
+ * restart from nothing each bite instead of building one story: the same
+ * picture twice, the box-with-arrows machine more than once, nothing real in
+ * any picture, or no picture keeping anything from the one before.
+ * Returns the problems found, each written as an instruction to the writer.
+ */
+export function drawingProblems(lesson: Lesson): string[] {
+  const problems: string[] = [];
+  const scenes = lesson.bites.map((b) => b.scene);
+  for (let i = 1; i < scenes.length; i++) {
+    const a = scenes[i - 1];
+    const b = scenes[i];
+    if (a && b && JSON.stringify({ ...a, lit: 0 }) === JSON.stringify({ ...b, lit: 0 })) problems.push(`Bite ${i + 1} draws exactly the same picture as bite ${i}. Keep what carries on, but change the picture so it shows bite ${i + 1}'s new point.`);
+  }
+  const machines = scenes.filter((s) => s?.family === "machine").length;
+  if (machines > 1) problems.push(`${machines} bites use machine. Use it at most once, and draw the other bites with the real thing, a person doing it, or the next step of the story.`);
+  const drawn = scenes.filter((s): s is Scene => !!s);
+  if (drawn.length >= 2 && !drawn.some((s) => REAL_DEVICES.has(s.family))) problems.push(`Every picture is a chart or a box (${drawn.map((s) => s.family).join(", ")}). Make at least one, ideally the first, show someone or something real: stage, things, body, map, circuit, quote or another real device.`);
+  if (drawn.length >= 2) {
+    let kept = false;
+    for (let i = 1; i < scenes.length; i++) {
+      const a = scenes[i - 1];
+      const b = scenes[i];
+      if (!a || !b) continue;
+      const na = sceneNames(a);
+      if ([...sceneNames(b)].some((w) => na.has(w))) kept = true;
+    }
+    if (!kept) problems.push("The pictures never build on each other: no picture keeps anything from the one before, so each starts a new, unrelated drawing. Let each picture after the first keep at least one labelled thing from the one before, with exactly the same label (the same person, thing, place or term), and add the next step around it.");
+  }
+  return problems;
 }
 
 function userMessage(req: LessonRequest, retry?: string): string {
@@ -530,12 +587,16 @@ export async function buildLesson(
         problem = "Most quotes were not copied word for word from the notes.";
         continue;
       }
-      // Three pictures of the same kind teach less than three different ones.
+      // Three pictures of the same kind teach less than three different ones,
+      // and pictures that never build on each other read as three strangers.
       const same = oneDevice(lesson);
-      if (same && attempt === 0) {
+      const drawn = drawingProblems(lesson);
+      if (same) drawn.unshift(`Every bite used the same device (${same}). Keep the best one and give the other bites a different device that fits their own point.`);
+      if (drawn.length) console.warn("lesson: drawings", JSON.stringify({ topic: req.topic, attempt, devices: lesson.bites.map((b) => b.scene?.family ?? null), drawn }));
+      if (drawn.length && attempt === 0) {
         // The lesson is still a good one: keep it in case the second try fails.
         spare = { lesson, model: r.model, problems: [] };
-        problem = `Every bite used the same device (${same}). Keep the best one and give the other bites a different device that fits their own point.`;
+        problem = `The pictures need work. ${drawn.join(" ")}`;
         continue;
       }
       // A bite with no drawing is a gap in the visual language worth knowing about.
