@@ -80,14 +80,20 @@ function onPhone(ctx: vm.Context) {
 }
 
 /** Every "Name: {scene}" example in the writer's instructions. */
-function examples(): { name: string; scene: unknown }[] {
-  const out: { name: string; scene: unknown }[] = [];
+function examples(): { name: string; scene: unknown; changes: unknown[] }[] {
+  const out: { name: string; scene: unknown; changes: unknown[] }[] = [];
   for (const line of SCENE_PROMPT.split("\n")) {
     const m = line.match(/^\s*([^{]{2,80}?):?\s+(\{"family".*?\})(\s+play\s+\{.*)?$/);
     if (!m) continue;
     try {
       const s = checkScene(JSON.parse(m[2]));
-      if (s) out.push({ name: m[1].trim(), scene: s });
+      let changes: unknown[] = [];
+      try {
+        changes = m[3] ? (JSON.parse(m[3].replace(/^\s+play\s+/, "")).changes ?? []) : [];
+      } catch {
+        changes = [];
+      }
+      if (s) out.push({ name: m[1].trim(), scene: s, changes });
     } catch {
       // not a single scene on this line
     }
@@ -107,14 +113,20 @@ describe("drawings on the phone's UI thread", () => {
     expect(scenes.length).toBeGreaterThan(40);
   });
 
-  for (const { name, scene } of scenes) {
+  it("includes the slider examples", () => {
+    expect(scenes.filter((x) => x.changes.length).length).toBeGreaterThan(3);
+  });
+
+  for (const { name, scene, changes } of scenes) {
     it(`draws ${name}`, () => {
       for (const f of [
         { t: 6, T: 6, v: 0.6, intro: 1, still: false, hand: false, boil: 0, amp: 0.42, age: 9 },
         { t: 0.6, T: 0.6, v: 0, intro: 0.4, still: false, hand: true, boil: 3, amp: 0.42, age: 0.2 },
+        { t: 4, T: 4, v: 0.8, intro: 1, still: false, hand: true, boil: 1, amp: 0.42, age: 9 },
       ]) {
         (globalThis as any).__draws = 0;
-        draw(m.fakeCanvas, scene, [], f, m.fakeFont);
+        // With the slider moved too, as the play step does.
+        draw(m.fakeCanvas, scene, f.v > 0.5 ? changes : [], f, m.fakeFont);
         expect((globalThis as any).__draws).toBeGreaterThan(0);
       }
     });
