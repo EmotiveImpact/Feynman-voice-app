@@ -159,8 +159,10 @@ function fill(p: SkPaint, colour: string, a: number) {
   p.setAlphaf(clamp(a));
 }
 
-function stroke(p: SkPaint, colour: string, a: number, w = W0, dash?: number[]) {
+function stroke(p: SkPaint, colour: string, a: number, w?: number, dash?: number[]) {
   "worklet";
+  // Defaults are set here, not in the parameter list: on the phone a parameter default runs before the worklet's captured values exist.
+  if (w === undefined) w = W0;
   p.setStyle(1);
   p.setStrokeWidth(w);
   p.setStrokeCap(1);
@@ -180,31 +182,40 @@ function halo(c: SkCanvas, x: number, y: number, r: number, a: number) {
   c.drawCircle(x, y, r + 1.5, hp);
 }
 
-function dot(c: SkCanvas, p: SkPaint, x: number, y: number, r: number, a: number, colour = SIL) {
+function dot(c: SkCanvas, p: SkPaint, x: number, y: number, r: number, a: number, colour?: string) {
   "worklet";
+  // Defaults are set here, not in the parameter list: on the phone a parameter default runs before the worklet's captured values exist.
+  if (colour === undefined) colour = SIL;
   if (a <= 0.01 || r <= 0) return;
   if (colour === BLUE && r >= 3) halo(c, x, y, r, a);
   fill(p, colour, a);
   c.drawCircle(x, y, r, p);
 }
 
-function ring(c: SkCanvas, p: SkPaint, x: number, y: number, r: number, a: number, colour = SIL) {
+function ring(c: SkCanvas, p: SkPaint, x: number, y: number, r: number, a: number, colour?: string) {
   "worklet";
+  // Defaults are set here, not in the parameter list: on the phone a parameter default runs before the worklet's captured values exist.
+  if (colour === undefined) colour = SIL;
   if (a <= 0.01 || r <= 0) return;
   stroke(p, colour, a);
   c.drawCircle(x, y, r, p);
 }
 
 /** A line drawn on from its start: k from 0 to 1. */
-function line(c: SkCanvas, p: SkPaint, x1: number, y1: number, x2: number, y2: number, a: number, colour = SIL, k = 1, dash?: number[], w = W0) {
+function line(c: SkCanvas, p: SkPaint, x1: number, y1: number, x2: number, y2: number, a: number, colour?: string, k = 1, dash?: number[], w?: number) {
   "worklet";
+  // Defaults are set here, not in the parameter list: on the phone a parameter default runs before the worklet's captured values exist.
+  if (colour === undefined) colour = SIL;
+  if (w === undefined) w = W0;
   if (a <= 0.01 || k <= 0) return;
   stroke(p, colour, a, w, dash);
   c.drawLine(x1, y1, x1 + (x2 - x1) * k, y1 + (y2 - y1) * k, p);
 }
 
-function arrow(c: SkCanvas, p: SkPaint, x1: number, y1: number, x2: number, y2: number, a: number, colour = SIL, k = 1) {
+function arrow(c: SkCanvas, p: SkPaint, x1: number, y1: number, x2: number, y2: number, a: number, colour?: string, k = 1) {
   "worklet";
+  // Defaults are set here, not in the parameter list: on the phone a parameter default runs before the worklet's captured values exist.
+  if (colour === undefined) colour = SIL;
   line(c, p, x1, y1, x2, y2, a, colour, k);
   // The lit line carries a small light at its pen tip while it draws.
   if (colour === BLUE && k > 0.02 && k < 0.98) dot(c, p, x1 + (x2 - x1) * k, y1 + (y2 - y1) * k, 2.6, a, BLUE);
@@ -216,8 +227,10 @@ function arrow(c: SkCanvas, p: SkPaint, x1: number, y1: number, x2: number, y2: 
 }
 
 /** A spark: four short rays where two things meet. It always means "a reaction happened here". */
-function spark(c: SkCanvas, p: SkPaint, x: number, y: number, a: number, colour = BLUE) {
+function spark(c: SkCanvas, p: SkPaint, x: number, y: number, a: number, colour?: string) {
   "worklet";
+  // Defaults are set here, not in the parameter list: on the phone a parameter default runs before the worklet's captured values exist.
+  if (colour === undefined) colour = BLUE;
   for (let i = 0; i < 4; i++) {
     const an = Math.PI / 4 + (i * Math.PI) / 2;
     line(c, p, x + Math.cos(an) * 7, y + Math.sin(an) * 7, x + Math.cos(an) * 12, y + Math.sin(an) * 12, a, colour);
@@ -235,8 +248,10 @@ function written(text: string, a: number) {
 }
 
 /** Text drawn exactly where asked. For turned or scaled drawing, where the panel's edges are not where they seem. */
-function rawLabel(c: SkCanvas, p: SkPaint, font: SkFont | null, text: string, x: number, y: number, align: "left" | "center" | "right", colour = LAB, a = 1) {
+function rawLabel(c: SkCanvas, p: SkPaint, font: SkFont | null, text: string, x: number, y: number, align: "left" | "center" | "right", colour?: string, a = 1) {
   "worklet";
+  // Defaults are set here, not in the parameter list: on the phone a parameter default runs before the worklet's captured values exist.
+  if (colour === undefined) colour = LAB;
   if (!font || !text || a <= 0.01) return;
   const w = font.getTextWidth(text);
   const left = align === "center" ? x - w / 2 : align === "right" ? x - w : x;
@@ -245,8 +260,10 @@ function rawLabel(c: SkCanvas, p: SkPaint, font: SkFont | null, text: string, x:
 }
 
 /** A label. It is nudged sideways if it would run off the panel, so no word is ever lost over the edge. */
-function label(c: SkCanvas, p: SkPaint, font: SkFont | null, text: string, x: number, y: number, align: "left" | "center" | "right", colour = LAB, a = 1) {
+function label(c: SkCanvas, p: SkPaint, font: SkFont | null, text: string, x: number, y: number, align: "left" | "center" | "right", colour?: string, a = 1) {
   "worklet";
+  // Defaults are set here, not in the parameter list: on the phone a parameter default runs before the worklet's captured values exist.
+  if (colour === undefined) colour = LAB;
   if (!font || !text || a <= 0.01) return;
   const w = font.getTextWidth(text);
   const left = align === "center" ? x - w / 2 : align === "right" ? x - w : x;
@@ -256,8 +273,10 @@ function label(c: SkCanvas, p: SkPaint, font: SkFont | null, text: string, x: nu
 }
 
 /** A label on a small patch of the panel's own colour, so a line passing behind it stops short of the words. */
-function knockLabel(c: SkCanvas, p: SkPaint, font: SkFont | null, text: string, x: number, y: number, align: "left" | "center" | "right", colour = LAB, a = 1) {
+function knockLabel(c: SkCanvas, p: SkPaint, font: SkFont | null, text: string, x: number, y: number, align: "left" | "center" | "right", colour?: string, a = 1) {
   "worklet";
+  // Defaults are set here, not in the parameter list: on the phone a parameter default runs before the worklet's captured values exist.
+  if (colour === undefined) colour = LAB;
   if (!font || !text || a <= 0.01) return;
   const w = font.getTextWidth(text);
   const left = align === "center" ? x - w / 2 : align === "right" ? x - w : x;
@@ -1268,8 +1287,11 @@ function drawGraph(c: SkCanvas, p: SkPaint, font: SkFont | null, s: GraphScene, 
 }
 
 /** A polyline through points [x0, y0, x1, y1, ...]. */
-function strokePts(c: SkCanvas, p: SkPaint, pts: number[], a: number, colour = SIL, w = W0, dash?: number[]) {
+function strokePts(c: SkCanvas, p: SkPaint, pts: number[], a: number, colour?: string, w?: number, dash?: number[]) {
   "worklet";
+  // Defaults are set here, not in the parameter list: on the phone a parameter default runs before the worklet's captured values exist.
+  if (colour === undefined) colour = SIL;
+  if (w === undefined) w = W0;
   if (a <= 0.01 || pts.length < 4) return;
   const path = Skia.PathBuilder.Make();
   path.moveTo(wx(p, pts[0], pts[1]), wy(p, pts[0], pts[1]));
@@ -1279,8 +1301,11 @@ function strokePts(c: SkCanvas, p: SkPaint, pts: number[], a: number, colour = S
 }
 
 /** Many separate lines in one go (a coastline): each entry is a flat list of x, y. */
-function strokeLines(c: SkCanvas, p: SkPaint, lines: number[][], a: number, colour = SIL, w = W0, dash?: number[]) {
+function strokeLines(c: SkCanvas, p: SkPaint, lines: number[][], a: number, colour?: string, w?: number, dash?: number[]) {
   "worklet";
+  // Defaults are set here, not in the parameter list: on the phone a parameter default runs before the worklet's captured values exist.
+  if (colour === undefined) colour = SIL;
+  if (w === undefined) w = W0;
   if (a <= 0.01 || !lines.length) return;
   const path = Skia.PathBuilder.Make();
   for (let j = 0; j < lines.length; j++) {
@@ -2245,8 +2270,10 @@ function drawMarks(c: SkCanvas, p: SkPaint, marks: ThingMark[], x: number, y: nu
  * kit (see kit.ts): a pose with a face, a hat and something in its hand, or a
  * building shell with a sign on it. fx -1 turns it to face the other way.
  */
-export function drawThing(c: SkCanvas, p: SkPaint, name: string, x: number, y: number, h: number, a: number, lit: boolean, k = 1, w = W0, glow = true, fx = 1) {
+export function drawThing(c: SkCanvas, p: SkPaint, name: string, x: number, y: number, h: number, a: number, lit: boolean, k = 1, w?: number, glow = true, fx = 1) {
   "worklet";
+  // Defaults are set here, not in the parameter list: on the phone a parameter default runs before the worklet's captured values exist.
+  if (w === undefined) w = W0;
   if (!name || a <= 0.01 || k <= 0) return;
   const colour = lit ? BLUE : SIL;
   const al = lit ? a : a * 0.82;
@@ -2307,8 +2334,10 @@ function tweenPose(a: ThingMark[], b: ThingMark[], u: number) {
  * way, and a hat or a held thing that differs fades. Anything else changes by
  * one drawing fading as the other arrives, in the same place.
  */
-function drawThingTween(c: SkCanvas, p: SkPaint, from: string, to: string, u: number, x: number, y: number, h: number, a: number, lit: boolean, w = W0, glow = true, fx = 1, stride = 0) {
+function drawThingTween(c: SkCanvas, p: SkPaint, from: string, to: string, u: number, x: number, y: number, h: number, a: number, lit: boolean, w?: number, glow = true, fx = 1, stride = 0) {
   "worklet";
+  // Defaults are set here, not in the parameter list: on the phone a parameter default runs before the worklet's captured values exist.
+  if (w === undefined) w = W0;
   if ((u <= 0 || from === to) && !stride) {
     drawThing(c, p, u <= 0 ? from : to, x, y, h, a, lit, 1, w, glow, fx);
     return;
