@@ -3,6 +3,9 @@
 // (npm hoists it to the root node_modules), so pod install fails on EAS.
 // This is the same plugin with the path worked out from where the package
 // really is.
+//
+// It also pins onnxruntime-c to ./onnxruntime-c.podspec, because the
+// official spec's download host is dead (see the comment in that file).
 const path = require("path");
 const fs = require("fs");
 const { withAppBuildGradle, withDangerousMod } = require("expo/config-plugins");
@@ -29,12 +32,19 @@ module.exports = function withOnnxruntime(config) {
       const iosRoot = c.modRequest.platformProjectRoot;
       const podfile = path.join(iosRoot, "Podfile");
       const rel = path.relative(iosRoot, pkgDir).split(path.sep).join("/");
+      const ortSpec = path
+        .relative(iosRoot, path.join(__dirname, "onnxruntime-c.podspec"))
+        .split(path.sep)
+        .join("/");
       const contents = fs.readFileSync(podfile, "utf8");
       fs.writeFileSync(
         podfile,
         mergeContents({
           src: contents,
-          newSrc: `  pod 'onnxruntime-react-native', :path => '${rel}'`,
+          newSrc: [
+            `  pod 'onnxruntime-react-native', :path => '${rel}'`,
+            `  pod 'onnxruntime-c', :podspec => '${ortSpec}'`,
+          ].join("\n"),
           tag: "onnxruntime-react-native",
           anchor: /^target.+do$/,
           offset: 1,
