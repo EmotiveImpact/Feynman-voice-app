@@ -10,10 +10,12 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "n
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import vm from "node:vm";
-import { transformSync } from "@babel/core";
 import { buildSync } from "esbuild";
 import { describe, expect, it } from "vitest";
 import { SCENE_PROMPT, checkScene } from "../src/scene";
+
+// The app's own Babel, untyped here, so loaded with require.
+const { transformSync } = require("@babel/core") as { transformSync: (code: string, opts: object) => { code?: string | null } | null };
 
 const SCENE_DIR = join(__dirname, "../../mobile/src/teach/scene");
 const ROOT = join(__dirname, "../../..");
